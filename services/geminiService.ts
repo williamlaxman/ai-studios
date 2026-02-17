@@ -1,12 +1,13 @@
 import { GoogleGenAI } from "@google/genai";
 import { RoboflowPrediction } from "../types";
 
-export const getSkinCareInsights = async (predictions: RoboflowPrediction[], userApiKey?: string): Promise<string> => {
-  // Use the key passed from App state (user settings) or fallback to env var
-  const apiKey = userApiKey || process.env.API_KEY || "";
+export const getSkinCareInsights = async (predictions: RoboflowPrediction[]): Promise<string> => {
+  // The API key must be obtained exclusively from the environment variable.
+  const apiKey = process.env.API_KEY;
 
   if (!apiKey) {
-    return "Please enter a valid Google Gemini API Key in the Settings menu to receive AI insights.";
+    console.error("Missing API_KEY in environment variables.");
+    return "## Configuration Error\n\nThe Google Gemini API Key is missing. Please configure the `API_KEY` environment variable in your Vercel project settings.";
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -25,7 +26,8 @@ export const getSkinCareInsights = async (predictions: RoboflowPrediction[], use
     Provide a professional, brief analysis of what these findings mean and general skincare advice (e.g., ingredients like Salicylic Acid for blackheads/whiteheads or Benzoyl Peroxide for inflammatory acne). 
     
     IMPORTANT: Include a strong medical disclaimer that this is an AI analysis and not a professional medical diagnosis. Suggest consulting a dermatologist.
-    Format your response in Markdown.
+    
+    Return the response in clear Markdown format. Use bullet points and bold text where appropriate.
   `;
 
   try {
@@ -36,6 +38,6 @@ export const getSkinCareInsights = async (predictions: RoboflowPrediction[], use
     return response.text || "No insights available at this time.";
   } catch (error) {
     console.error("Gemini Error:", error);
-    return "Could not generate AI insights. Please check your API Key in Settings.";
+    return "## Analysis Failed\n\nCould not generate AI insights. Please check your API usage limits or configuration.";
   }
 };

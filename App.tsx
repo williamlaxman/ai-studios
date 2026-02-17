@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { Stats, AnalysisResult } from './types';
 import StatsCards from './components/StatsCards';
 import AnalyzedImage from './components/AnalyzedImage';
@@ -16,7 +17,6 @@ const App: React.FC = () => {
   
   // Settings State
   const [roboflowKey, setRoboflowKey] = useState(localStorage.getItem('acne_away_api_key') || DEFAULT_API_KEY);
-  const [geminiKey, setGeminiKey] = useState(localStorage.getItem('acne_away_gemini_key') || '');
   const [modelId, setModelId] = useState(localStorage.getItem('acne_away_model_id') || DEFAULT_MODEL_ENDPOINT);
   
   const [copySuccess, setCopySuccess] = useState(false);
@@ -36,8 +36,7 @@ const App: React.FC = () => {
   useEffect(() => {
     // Handle URL Params without reloading the page
     const params = new URLSearchParams(window.location.search);
-    const urlRoboflowKey = params.get('apiKey'); // Keeping legacy query param name for Roboflow
-    const urlGeminiKey = params.get('geminiKey');
+    const urlRoboflowKey = params.get('apiKey'); 
     const urlModel = params.get('modelId');
     
     let updated = false;
@@ -45,11 +44,6 @@ const App: React.FC = () => {
     if (urlRoboflowKey) {
       localStorage.setItem('acne_away_api_key', urlRoboflowKey);
       setRoboflowKey(urlRoboflowKey);
-      updated = true;
-    }
-    if (urlGeminiKey) {
-      localStorage.setItem('acne_away_gemini_key', urlGeminiKey);
-      setGeminiKey(urlGeminiKey);
       updated = true;
     }
     if (urlModel) {
@@ -67,7 +61,6 @@ const App: React.FC = () => {
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem('acne_away_api_key', roboflowKey);
-    localStorage.setItem('acne_away_gemini_key', geminiKey);
     localStorage.setItem('acne_away_model_id', modelId);
     setShowSettings(false);
     // Reload not strictly necessary with React state, but ensures services read fresh from localStorage if they aren't reactive
@@ -76,7 +69,7 @@ const App: React.FC = () => {
 
   const handleShareLink = () => {
     const baseUrl = window.location.origin + window.location.pathname;
-    const shareUrl = `${baseUrl}?apiKey=${encodeURIComponent(roboflowKey)}&modelId=${encodeURIComponent(modelId)}&geminiKey=${encodeURIComponent(geminiKey)}`;
+    const shareUrl = `${baseUrl}?apiKey=${encodeURIComponent(roboflowKey)}&modelId=${encodeURIComponent(modelId)}`;
     navigator.clipboard.writeText(shareUrl).then(() => {
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
@@ -132,8 +125,8 @@ const App: React.FC = () => {
         avgConfidence: analysis.predictions.length > 0 ? totalConf / analysis.predictions.length : 0,
       });
       
-      // Pass the specific Gemini Key to the service
-      const aiInsights = await getSkinCareInsights(analysis.predictions, geminiKey);
+      // Use env var based Gemini service
+      const aiInsights = await getSkinCareInsights(analysis.predictions);
       setInsights(aiInsights);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred during analysis.");
@@ -298,7 +291,18 @@ const App: React.FC = () => {
                       <i className="fa-solid fa-quote-left text-[#a53d4c] text-2xl"></i>
                       <h3 className="text-xs font-black text-[#a53d4c] uppercase tracking-widest">Clinical AI Assessment</h3>
                     </div>
-                    <div className="text-xs text-gray-600 leading-relaxed font-medium space-y-4" dangerouslySetInnerHTML={{ __html: insights.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>') }} />
+                    <div className="text-xs text-gray-600 leading-relaxed font-medium space-y-4">
+                      <ReactMarkdown 
+                        components={{
+                          strong: ({node, ...props}) => <span className="font-bold text-[#a53d4c]" {...props} />,
+                          ul: ({node, ...props}) => <ul className="list-disc pl-4 space-y-1" {...props} />,
+                          li: ({node, ...props}) => <li className="pl-1" {...props} />,
+                          p: ({node, ...props}) => <p className="mb-2" {...props} />
+                        }}
+                      >
+                        {insights}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 )}
 
@@ -349,10 +353,7 @@ const App: React.FC = () => {
                   <label className="block text-[10px] font-black text-[#a53d4c] uppercase tracking-widest mb-2">Roboflow Endpoint URL</label>
                   <input type="text" value={modelId} onChange={(e) => setModelId(e.target.value)} placeholder="e.g. acne-type/3" className="w-full px-6 py-4 bg-white border border-[#f3d9b1] rounded-2xl focus:ring-2 focus:ring-[#a53d4c] outline-none text-sm font-bold shadow-inner" />
                 </div>
-                <div className="pt-4 border-t border-[#f3d9b1]">
-                   <label className="block text-[10px] font-black text-[#a53d4c] uppercase tracking-widest mb-2">Google Gemini API Key</label>
-                   <input type="password" value={geminiKey} onChange={(e) => setGeminiKey(e.target.value)} className="w-full px-6 py-4 bg-white border border-[#f3d9b1] rounded-2xl focus:ring-2 focus:ring-[#a53d4c] outline-none text-sm font-bold shadow-inner" placeholder="For Skin Care Insights" />
-                </div>
+                {/* Gemini Key Config removed to enforce environment variable usage */}
 
                 <button type="submit" className="w-full py-5 bg-[#a53d4c] text-white font-black uppercase tracking-widest rounded-2xl shadow-xl hover:bg-[#8b2635] transform active:scale-95 transition-all">
                   Save & Authorize
