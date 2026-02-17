@@ -13,8 +13,12 @@ const App: React.FC = () => {
   const [insights, setInsights] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [apiKey, setApiKey] = useState(localStorage.getItem('acne_away_api_key') || DEFAULT_API_KEY);
+  
+  // Settings State
+  const [roboflowKey, setRoboflowKey] = useState(localStorage.getItem('acne_away_api_key') || DEFAULT_API_KEY);
+  const [geminiKey, setGeminiKey] = useState(localStorage.getItem('acne_away_gemini_key') || '');
   const [modelId, setModelId] = useState(localStorage.getItem('acne_away_model_id') || DEFAULT_MODEL_ENDPOINT);
+  
   const [copySuccess, setCopySuccess] = useState(false);
   
   // Upload Feedback State
@@ -30,27 +34,49 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // Handle URL Params without reloading the page
     const params = new URLSearchParams(window.location.search);
-    const urlKey = params.get('apiKey');
+    const urlRoboflowKey = params.get('apiKey'); // Keeping legacy query param name for Roboflow
+    const urlGeminiKey = params.get('geminiKey');
     const urlModel = params.get('modelId');
-    if (urlKey || urlModel) {
-      if (urlKey) localStorage.setItem('acne_away_api_key', urlKey);
-      if (urlModel) localStorage.setItem('acne_away_model_id', urlModel);
-      window.location.href = window.location.origin + window.location.pathname;
+    
+    let updated = false;
+
+    if (urlRoboflowKey) {
+      localStorage.setItem('acne_away_api_key', urlRoboflowKey);
+      setRoboflowKey(urlRoboflowKey);
+      updated = true;
+    }
+    if (urlGeminiKey) {
+      localStorage.setItem('acne_away_gemini_key', urlGeminiKey);
+      setGeminiKey(urlGeminiKey);
+      updated = true;
+    }
+    if (urlModel) {
+      localStorage.setItem('acne_away_model_id', urlModel);
+      setModelId(urlModel);
+      updated = true;
+    }
+
+    if (updated) {
+        // Clean URL cleanly
+        window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('acne_away_api_key', apiKey);
+    localStorage.setItem('acne_away_api_key', roboflowKey);
+    localStorage.setItem('acne_away_gemini_key', geminiKey);
     localStorage.setItem('acne_away_model_id', modelId);
     setShowSettings(false);
+    // Reload not strictly necessary with React state, but ensures services read fresh from localStorage if they aren't reactive
     window.location.reload(); 
   };
 
   const handleShareLink = () => {
     const baseUrl = window.location.origin + window.location.pathname;
-    const shareUrl = `${baseUrl}?apiKey=${encodeURIComponent(apiKey)}&modelId=${encodeURIComponent(modelId)}`;
+    const shareUrl = `${baseUrl}?apiKey=${encodeURIComponent(roboflowKey)}&modelId=${encodeURIComponent(modelId)}&geminiKey=${encodeURIComponent(geminiKey)}`;
     navigator.clipboard.writeText(shareUrl).then(() => {
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
@@ -70,7 +96,7 @@ const App: React.FC = () => {
       // Reset states
       setUploadStatus('uploading');
       setUploadProgress(0);
-      setSelectedFile(null); // Clear previous file until upload 'finishes'
+      setSelectedFile(null); 
       setResult(null);
       setInsights(null);
       setError(null);
@@ -95,6 +121,7 @@ const App: React.FC = () => {
     setIsAnalyzing(true);
     setError(null);
     try {
+      // Roboflow Service reads from localStorage or uses default
       const analysis = await analyzeImage(selectedFile);
       setResult(analysis);
       const uniqueClasses = new Set(analysis.predictions.map(p => p.class));
@@ -104,8 +131,9 @@ const App: React.FC = () => {
         acneTypesFound: uniqueClasses.size,
         avgConfidence: analysis.predictions.length > 0 ? totalConf / analysis.predictions.length : 0,
       });
-      // Pass the apiKey from state so the service uses the user's custom key
-      const aiInsights = await getSkinCareInsights(analysis.predictions, apiKey);
+      
+      // Pass the specific Gemini Key to the service
+      const aiInsights = await getSkinCareInsights(analysis.predictions, geminiKey);
       setInsights(aiInsights);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred during analysis.");
@@ -315,14 +343,19 @@ const App: React.FC = () => {
               <form onSubmit={handleSaveSettings} className="space-y-5">
                 <div>
                   <label className="block text-[10px] font-black text-[#a53d4c] uppercase tracking-widest mb-2">Roboflow Private Key</label>
-                  <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="w-full px-6 py-4 bg-white border border-[#f3d9b1] rounded-2xl focus:ring-2 focus:ring-[#a53d4c] outline-none text-sm font-bold shadow-inner" />
+                  <input type="password" value={roboflowKey} onChange={(e) => setRoboflowKey(e.target.value)} className="w-full px-6 py-4 bg-white border border-[#f3d9b1] rounded-2xl focus:ring-2 focus:ring-[#a53d4c] outline-none text-sm font-bold shadow-inner" placeholder="Roboflow Key" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black text-[#a53d4c] uppercase tracking-widest mb-2">Endpoint URL</label>
+                  <label className="block text-[10px] font-black text-[#a53d4c] uppercase tracking-widest mb-2">Roboflow Endpoint URL</label>
                   <input type="text" value={modelId} onChange={(e) => setModelId(e.target.value)} placeholder="e.g. acne-type/3" className="w-full px-6 py-4 bg-white border border-[#f3d9b1] rounded-2xl focus:ring-2 focus:ring-[#a53d4c] outline-none text-sm font-bold shadow-inner" />
                 </div>
+                <div className="pt-4 border-t border-[#f3d9b1]">
+                   <label className="block text-[10px] font-black text-[#a53d4c] uppercase tracking-widest mb-2">Google Gemini API Key</label>
+                   <input type="password" value={geminiKey} onChange={(e) => setGeminiKey(e.target.value)} className="w-full px-6 py-4 bg-white border border-[#f3d9b1] rounded-2xl focus:ring-2 focus:ring-[#a53d4c] outline-none text-sm font-bold shadow-inner" placeholder="For Skin Care Insights" />
+                </div>
+
                 <button type="submit" className="w-full py-5 bg-[#a53d4c] text-white font-black uppercase tracking-widest rounded-2xl shadow-xl hover:bg-[#8b2635] transform active:scale-95 transition-all">
-                  Authorize & Refresh
+                  Save & Authorize
                 </button>
               </form>
               <div className="pt-6 border-t border-[#f3d9b1] flex flex-col items-center">

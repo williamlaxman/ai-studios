@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { RoboflowPrediction } from "../types";
 
 export const getSkinCareInsights = async (predictions: RoboflowPrediction[], userApiKey?: string): Promise<string> => {
-  // Prioritize the key passed from the UI (localStorage), then fallback to env var
+  // Use the key passed from App state (user settings) or fallback to env var
   const apiKey = userApiKey || process.env.API_KEY || "";
 
   if (!apiKey) {
@@ -37,6 +37,6 @@ export const getSkinCareInsights = async (predictions: RoboflowPrediction[], use
     return response.text || "No insights available at this time.";
   } catch (error) {
     console.error("Gemini Error:", error);
-    return "Could not generate AI insights. Please check your API Key.";
+    return "Could not generate AI insights. Please check your API Key in Settings.";
   }
 };

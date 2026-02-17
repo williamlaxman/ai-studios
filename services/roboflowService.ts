@@ -1,4 +1,3 @@
-
 import { RoboflowPrediction, AnalysisResult } from '../types';
 
 /**
