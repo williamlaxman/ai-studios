@@ -11,7 +11,6 @@ export const getSkinCareInsights = async (predictions: RoboflowPrediction[], use
 
   const ai = new GoogleGenAI({ apiKey });
   
-  const types = Array.from(new Set(predictions.map(p => p.class))).join(", ");
   const counts = predictions.reduce((acc: any, p) => {
     acc[p.class] = (acc[p.class] || 0) + 1;
     return acc;
