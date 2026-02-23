@@ -3,9 +3,10 @@ import { AnalysisResult } from '../types';
 
 interface AnalyzedImageProps {
   result: AnalysisResult | null;
+  confidenceThreshold?: number;
 }
 
-const AnalyzedImage: React.FC<AnalyzedImageProps> = ({ result }) => {
+const AnalyzedImage: React.FC<AnalyzedImageProps> = ({ result, confidenceThreshold = 0 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -28,8 +29,11 @@ const AnalyzedImage: React.FC<AnalyzedImageProps> = ({ result }) => {
       // Draw background image
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
+      // Filter predictions based on confidence threshold
+      const filteredPredictions = result.predictions.filter(p => p.confidence >= confidenceThreshold);
+
       // Draw predictions
-      result.predictions.forEach((pred) => {
+      filteredPredictions.forEach((pred) => {
         const x = (pred.x - pred.width / 2) * scale;
         const y = (pred.y - pred.height / 2) * scale;
         const w = pred.width * scale;
@@ -57,7 +61,7 @@ const AnalyzedImage: React.FC<AnalyzedImageProps> = ({ result }) => {
         ctx.fillText(labelText, x + 5, y - 8);
       });
     };
-  }, [result]);
+  }, [result, confidenceThreshold]);
 
   if (!result) {
     return (

@@ -1,28 +1,101 @@
 import React, { useState, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { Stats, AnalysisResult } from './types';
+import { Stats, AnalysisResult, PatientHistory } from './types';
 import StatsCards from './components/StatsCards';
 import AnalyzedImage from './components/AnalyzedImage';
+import FDAResults from './components/FDAResults';
 import { analyzeImage, isDemoMode, DEFAULT_API_KEY, DEFAULT_MODEL_ENDPOINT } from './services/roboflowService';
-import { getSkinCareInsights } from './services/geminiService';
+import { getSkinCareInsights, AIInsights } from './services/geminiService';
+
+const Tooltip: React.FC<{ children: React.ReactNode; content: string }> = ({ children, content }) => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <div 
+      className="relative flex items-center"
+      onMouseEnter={() => setIsVisible(true)}
+      onMouseLeave={() => setIsVisible(false)}
+    >
+      {children}
+      {isVisible && (
+        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900/95 text-white text-xs rounded-xl shadow-xl z-50 backdrop-blur-sm border border-white/10 animate-in fade-in zoom-in duration-200">
+          {content}
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900/95"></div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PatientHistoryForm: React.FC<{ history: PatientHistory, setHistory: (h: PatientHistory) => void }> = ({ history, setHistory }) => {
+  return (
+    <div className="bg-white/40 poster-card p-6 border border-[#a53d4c]/20 mt-6">
+      <div className="section-label mb-4">Patient History</div>
+      <div className="space-y-4">
+        <div>
+          <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Skin Type</label>
+          <select 
+            value={history.skinType} 
+            onChange={(e) => setHistory({...history, skinType: e.target.value})}
+            className="w-full p-2 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#a53d4c] outline-none bg-white/50"
+          >
+            <option value="">Select Skin Type</option>
+            <option value="Oily">Oily</option>
+            <option value="Dry">Dry</option>
+            <option value="Combination">Combination</option>
+            <option value="Sensitive">Sensitive</option>
+            <option value="Normal">Normal</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Previous Treatments</label>
+          <input 
+            type="text" 
+            value={history.previousTreatments}
+            onChange={(e) => setHistory({...history, previousTreatments: e.target.value})}
+            placeholder="e.g., Benzoyl Peroxide, Salicylic Acid"
+            className="w-full p-2 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#a53d4c] outline-none bg-white/50"
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Medical/Skin History</label>
+          <textarea 
+            value={history.history}
+            onChange={(e) => setHistory({...history, history: e.target.value})}
+            placeholder="e.g., Hormonal acne, allergies"
+            className="w-full p-2 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#a53d4c] outline-none bg-white/50 h-20 resize-none"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const App: React.FC = () => {
   // App State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isRefreshingInsights, setIsRefreshingInsights] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [insights, setInsights] = useState<string | null>(null);
+  const [insights, setInsights] = useState<AIInsights | null>(null);
+  const [recommendedIngredients, setRecommendedIngredients] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  
+  const [patientHistory, setPatientHistory] = useState<PatientHistory>({
+    skinType: '',
+    previousTreatments: '',
+    history: ''
+  });
   
   // Settings State
   const [roboflowKey, setRoboflowKey] = useState(localStorage.getItem('acne_away_api_key') || DEFAULT_API_KEY);
   const [modelId, setModelId] = useState(localStorage.getItem('acne_away_model_id') || DEFAULT_MODEL_ENDPOINT);
+  const [geminiKey, setGeminiKey] = useState(localStorage.getItem('acne_away_gemini_key') || '');
   
   const [copySuccess, setCopySuccess] = useState(false);
   
   // Upload Feedback State
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'success' | 'error'>('idle');
   const [uploadProgress, setUploadProgress] = useState(0);
   
   const [stats, setStats] = useState<Stats>({
@@ -38,6 +111,7 @@ const App: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     const urlRoboflowKey = params.get('apiKey'); 
     const urlModel = params.get('modelId');
+    const urlGeminiKey = params.get('geminiKey');
     
     let updated = false;
 
@@ -51,6 +125,11 @@ const App: React.FC = () => {
       setModelId(urlModel);
       updated = true;
     }
+    if (urlGeminiKey) {
+      localStorage.setItem('acne_away_gemini_key', urlGeminiKey);
+      setGeminiKey(urlGeminiKey);
+      updated = true;
+    }
 
     if (updated) {
         // Clean URL cleanly
@@ -62,6 +141,7 @@ const App: React.FC = () => {
     e.preventDefault();
     localStorage.setItem('acne_away_api_key', roboflowKey);
     localStorage.setItem('acne_away_model_id', modelId);
+    localStorage.setItem('acne_away_gemini_key', geminiKey);
     setShowSettings(false);
     // Reload not strictly necessary with React state, but ensures services read fresh from localStorage if they aren't reactive
     window.location.reload(); 
@@ -69,7 +149,7 @@ const App: React.FC = () => {
 
   const handleShareLink = () => {
     const baseUrl = window.location.origin + window.location.pathname;
-    const shareUrl = `${baseUrl}?apiKey=${encodeURIComponent(roboflowKey)}&modelId=${encodeURIComponent(modelId)}`;
+    const shareUrl = `${baseUrl}?apiKey=${encodeURIComponent(roboflowKey)}&modelId=${encodeURIComponent(modelId)}&geminiKey=${encodeURIComponent(geminiKey)}`;
     navigator.clipboard.writeText(shareUrl).then(() => {
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
@@ -92,6 +172,7 @@ const App: React.FC = () => {
       setSelectedFile(null); 
       setResult(null);
       setInsights(null);
+      setRecommendedIngredients([]);
       setError(null);
 
       // Simulate upload progress
@@ -99,13 +180,20 @@ const App: React.FC = () => {
         setUploadProgress(prev => {
           if (prev >= 100) {
             clearInterval(interval);
-            setSelectedFile(file);
-            setUploadStatus('success');
+            // Transition to processing state
+            setUploadStatus('processing');
+            
+            // Simulate processing delay
+            setTimeout(() => {
+              setSelectedFile(file);
+              setUploadStatus('success');
+            }, 1500);
+            
             return 100;
           }
-          return prev + 10;
+          return prev + 5; // Slower increment for smoother animation
         });
-      }, 50);
+      }, 30);
     }
   };
 
@@ -113,25 +201,68 @@ const App: React.FC = () => {
     if (!selectedFile) return;
     setIsAnalyzing(true);
     setError(null);
+    
+    // Clear previous results to ensure clean state
+    setResult(null);
+    setInsights(null);
+    setRecommendedIngredients([]);
+
     try {
-      // Roboflow Service reads from localStorage or uses default
+      // 1. Perform Image Analysis
       const analysis = await analyzeImage(selectedFile);
-      setResult(analysis);
+      
+      // 2. Calculate Stats
       const uniqueClasses = new Set(analysis.predictions.map(p => p.class));
       const totalConf = analysis.predictions.reduce((acc, p) => acc + p.confidence, 0);
-      setStats({
+      const newStats = {
         totalDetections: analysis.predictions.length,
         acneTypesFound: uniqueClasses.size,
         avgConfidence: analysis.predictions.length > 0 ? totalConf / analysis.predictions.length : 0,
-      });
+      };
+
+      // 3. Generate Insights (Wait for this BEFORE rendering result)
+      // Retry logic for Gemini API to handle potential cold starts or network blips
+      let aiInsights = await getSkinCareInsights(analysis.predictions, geminiKey || localStorage.getItem('acne_away_gemini_key') || undefined, patientHistory);
       
-      // Use env var based Gemini service
-      const aiInsights = await getSkinCareInsights(analysis.predictions);
+      if (aiInsights.clinicalImpression === "Analysis Failed" || aiInsights.clinicalImpression === "System Error") {
+         console.log("Gemini Analysis failed, retrying once...");
+         await new Promise(r => setTimeout(r, 1000)); // Wait 1s
+         aiInsights = await getSkinCareInsights(analysis.predictions, geminiKey || localStorage.getItem('acne_away_gemini_key') || undefined, patientHistory);
+      }
+      
+      // 4. Batch Updates: Set all state at once to ensure full UI renders together
+      setStats(newStats);
+      setResult(analysis);
       setInsights(aiInsights);
+      setRecommendedIngredients(aiInsights.recommendedIngredients);
+      
     } catch (err: any) {
+      console.error("Analysis Error:", err);
       setError(err.message || "An unexpected error occurred during analysis.");
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleRefreshInsights = async () => {
+    if (!result) return;
+    setIsRefreshingInsights(true);
+    
+    try {
+      let aiInsights = await getSkinCareInsights(result.predictions, geminiKey || localStorage.getItem('acne_away_gemini_key') || undefined, patientHistory);
+      
+      if (aiInsights.clinicalImpression === "Analysis Failed" || aiInsights.clinicalImpression === "System Error") {
+         console.log("Gemini Analysis failed, retrying once...");
+         await new Promise(r => setTimeout(r, 1000)); // Wait 1s
+         aiInsights = await getSkinCareInsights(result.predictions, geminiKey || localStorage.getItem('acne_away_gemini_key') || undefined, patientHistory);
+      }
+      
+      setInsights(aiInsights);
+      setRecommendedIngredients(aiInsights.recommendedIngredients);
+    } catch (err) {
+      console.error("Error refreshing insights:", err);
+    } finally {
+      setIsRefreshingInsights(false);
     }
   };
 
@@ -199,11 +330,18 @@ const App: React.FC = () => {
             </div>
           </section>
 
-          <section className="bg-white poster-card p-8 shadow-xl border-t-8 border-[#a53d4c]">
+          <PatientHistoryForm history={patientHistory} setHistory={setPatientHistory} />
+
+          <section className={`bg-white poster-card p-8 shadow-xl border-t-8 border-[#a53d4c] transition-opacity duration-300 ${!patientHistory.skinType ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
             <div className="text-center mb-6">
               <i className="fa-solid fa-microscope text-[#a53d4c] text-4xl mb-4"></i>
               <h3 className="text-lg font-black text-[#a53d4c] uppercase tracking-tighter">Diagnostic Panel</h3>
               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Image Upload Center</p>
+              {!patientHistory.skinType && (
+                 <p className="text-[9px] text-red-500 font-bold uppercase tracking-widest mt-2 animate-pulse">
+                   <i className="fa-solid fa-circle-exclamation mr-1"></i> Please complete patient history first
+                 </p>
+              )}
             </div>
 
             <div 
@@ -211,19 +349,30 @@ const App: React.FC = () => {
                 uploadStatus === 'error' ? 'border-red-300 bg-red-50' : 
                 selectedFile ? 'border-[#a53d4c] bg-[#fdf2e9]' : 'border-gray-100 hover:border-[#a53d4c]/30'
               }`}
-              onClick={() => uploadStatus !== 'uploading' && fileInputRef.current?.click()}
+              onClick={() => uploadStatus !== 'uploading' && patientHistory.skinType && fileInputRef.current?.click()}
             >
-              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} disabled={!patientHistory.skinType} />
               
-              {uploadStatus === 'uploading' ? (
-                <div className="flex flex-col items-center justify-center py-4">
-                  <div className="w-full max-w-[200px] h-2 bg-gray-200 rounded-full overflow-hidden mb-4">
+              {uploadStatus === 'uploading' || uploadStatus === 'processing' ? (
+                <div className="flex flex-col items-center justify-center py-4 w-full px-8">
+                  <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden mb-3 border border-gray-200 relative">
                     <div 
-                      className="h-full bg-[#a53d4c] transition-all duration-100 ease-out"
+                      className={`h-full ${uploadStatus === 'processing' ? 'bg-[#a53d4c]' : 'bg-gradient-to-r from-[#a53d4c] to-[#d65c6c]'} transition-all duration-300 ease-out relative`}
                       style={{ width: `${uploadProgress}%` }}
-                    ></div>
+                    >
+                        <div className="absolute inset-0 bg-white/20 animate-[shimmer_1s_infinite] border-r border-white/30"></div>
+                    </div>
                   </div>
-                  <p className="text-[10px] font-black text-[#a53d4c] uppercase tracking-widest animate-pulse">Uploading Scan...</p>
+                  <div className="flex justify-between w-full text-[9px] font-bold uppercase tracking-widest text-[#a53d4c]">
+                    <span className="animate-pulse flex items-center gap-2">
+                      {uploadStatus === 'processing' ? (
+                        <>
+                          <i className="fa-solid fa-gear animate-spin"></i> Processing Image...
+                        </>
+                      ) : 'Uploading Scan...'}
+                    </span>
+                    <span>{uploadProgress}%</span>
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center relative z-10">
@@ -248,7 +397,7 @@ const App: React.FC = () => {
 
             <button
               onClick={handleAnalyze}
-              disabled={!selectedFile || isAnalyzing || uploadStatus === 'uploading'}
+              disabled={!selectedFile || isAnalyzing || uploadStatus === 'uploading' || !patientHistory.skinType}
               className="w-full mt-6 py-5 bg-[#a53d4c] text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl hover:bg-[#8b2635] disabled:bg-gray-200 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 text-sm relative overflow-hidden"
             >
               {isAnalyzing && (
@@ -285,31 +434,136 @@ const App: React.FC = () => {
                 </div>
                 
                 {/* Clinical Insights */}
-                {insights && (
-                  <div className="mt-8 bg-white/60 p-6 rounded-[2rem] border border-[#a53d4c]/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="flex items-center gap-2 mb-4">
-                      <i className="fa-solid fa-quote-left text-[#a53d4c] text-2xl"></i>
-                      <h3 className="text-xs font-black text-[#a53d4c] uppercase tracking-widest">Clinical AI Assessment</h3>
-                    </div>
-                    <div className="text-xs text-gray-600 leading-relaxed font-medium space-y-4">
-                      <ReactMarkdown 
-                        components={{
-                          strong: ({node, ...props}) => <span className="font-bold text-[#a53d4c]" {...props} />,
-                          ul: ({node, ...props}) => <ul className="list-disc pl-4 space-y-1" {...props} />,
-                          li: ({node, ...props}) => <li className="pl-1" {...props} />,
-                          p: ({node, ...props}) => <p className="mb-2" {...props} />
-                        }}
-                      >
-                        {insights}
-                      </ReactMarkdown>
-                    </div>
-                  </div>
+                {result && (
+                  <>
+                    {insights ? (
+                      <div className="mt-8 bg-white/60 p-8 rounded-[2rem] border border-[#a53d4c]/10 shadow-sm">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-[#a53d4c] p-2 rounded-lg">
+                              <i className="fa-solid fa-user-doctor text-white text-xl"></i>
+                            </div>
+                            <h3 className="text-sm font-black text-[#a53d4c] uppercase tracking-widest">Clinical AI Assessment</h3>
+                          </div>
+                          
+                          <button 
+                            onClick={handleRefreshInsights} 
+                            disabled={isRefreshingInsights}
+                            className="text-[10px] font-bold uppercase tracking-wider text-[#a53d4c] hover:bg-[#a53d4c]/10 px-3 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+                          >
+                            <i className={`fa-solid fa-rotate-right ${isRefreshingInsights ? 'animate-spin' : ''}`}></i>
+                            {isRefreshingInsights ? 'Refreshing...' : 'Refresh Insights'}
+                          </button>
+                        </div>
+                        
+                        <div className={`space-y-8 transition-opacity duration-300 ${isRefreshingInsights ? 'opacity-50' : 'opacity-100'}`}>
+                          {/* Clinical Impression Section */}
+                          <div>
+                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                              <i className="fa-solid fa-stethoscope"></i> Clinical Impression
+                            </h4>
+                            <p className="text-sm text-gray-700 leading-relaxed font-medium">
+                              {insights.clinicalImpression}
+                            </p>
+                          </div>
+
+                          {/* Key Findings Grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-[#fdf2e9] p-5 rounded-2xl border border-orange-100">
+                               <h4 className="text-xs font-bold text-orange-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                 <i className="fa-solid fa-microscope"></i> Objective Findings
+                               </h4>
+                               <ul className="space-y-2">
+                                 {insights.objectiveFindings.map((finding, idx) => (
+                                   <li key={idx} className="text-xs text-gray-700 flex items-start gap-2">
+                                     <i className="fa-solid fa-circle-exclamation text-orange-400 mt-0.5 text-[8px]"></i>
+                                     <span>{finding}</span>
+                                   </li>
+                                 ))}
+                               </ul>
+                            </div>
+
+                            <div className="bg-[#f0fdf4] p-5 rounded-2xl border border-green-100">
+                               <h4 className="text-xs font-bold text-green-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                 <i className="fa-solid fa-prescription-bottle-medical"></i> Treatment Plan
+                               </h4>
+                               <ul className="space-y-2">
+                                 {insights.treatmentPlan.map((rec, idx) => (
+                                   <li key={idx} className="text-xs text-gray-700 flex items-start gap-2">
+                                     <i className="fa-solid fa-check text-green-400 mt-0.5 text-[8px]"></i>
+                                     <span>{rec}</span>
+                                   </li>
+                                 ))}
+                               </ul>
+                            </div>
+                          </div>
+
+                          {/* Ingredient Rationale */}
+                          {insights.ingredientRationale && insights.ingredientRationale.length > 0 && (
+                            <div>
+                              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <i className="fa-solid fa-mortar-pestle"></i> Pharmacological Rationale
+                              </h4>
+                              <div className="flex flex-wrap gap-3">
+                                {insights.ingredientRationale.map((item, idx) => (
+                                  <Tooltip key={idx} content={item.rationale}>
+                                    <div className="bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm hover:border-[#a53d4c]/30 hover:shadow-md transition-all cursor-help group">
+                                      <span className="font-bold text-[#a53d4c] text-xs flex items-center gap-2">
+                                        {item.ingredient}
+                                        <i className="fa-solid fa-circle-info text-[10px] opacity-30 group-hover:opacity-100 transition-opacity text-[#a53d4c]"></i>
+                                      </span>
+                                    </div>
+                                  </Tooltip>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Disclaimer */}
+                          <div className="bg-red-50 p-4 rounded-xl border border-red-100 flex gap-3 items-start">
+                            <i className="fa-solid fa-shield-heart text-red-400 mt-1"></i>
+                            <div>
+                              <h5 className="text-[10px] font-bold text-red-800 uppercase tracking-wider mb-1">Medical Disclaimer</h5>
+                              <p className="text-[10px] text-red-700 leading-relaxed">
+                                {insights.disclaimer}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-8 p-8 text-center text-gray-400 italic bg-white/40 rounded-3xl border border-dashed border-gray-300">
+                        <i className="fa-solid fa-spinner animate-spin text-2xl mb-2 text-[#a53d4c]"></i>
+                        <p>Generating detailed clinical insights...</p>
+                      </div>
+                    )}
+
+                    {/* FDA Results */}
+                    <FDAResults 
+                      ingredients={recommendedIngredients} 
+                      products={insights?.recommendedProducts}
+                      onRefresh={handleRefreshInsights}
+                      isRefreshing={isRefreshingInsights}
+                    />
+                  </>
                 )}
 
                 {!result && !isAnalyzing && (
                   <div className="py-20 text-center opacity-30 italic">
                      <i className="fa-solid fa-chart-line text-6xl mb-4 text-[#a53d4c]"></i>
                      <p className="text-xs font-bold uppercase">Ready for Clinical Data Input</p>
+                  </div>
+                )}
+                
+                {isAnalyzing && (
+                  <div className="py-20 text-center flex flex-col items-center justify-center">
+                     <div className="relative w-24 h-24 mb-6">
+                        <div className="absolute inset-0 border-4 border-[#a53d4c]/20 rounded-full"></div>
+                        <div className="absolute inset-0 border-4 border-[#a53d4c] rounded-full border-t-transparent animate-spin"></div>
+                        <i className="fa-solid fa-microscope text-3xl text-[#a53d4c] absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></i>
+                     </div>
+                     <p className="text-xs font-black uppercase tracking-widest text-[#a53d4c] animate-pulse mb-2">Analyzing Skin Lesions...</p>
+                     <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">Generating Clinical Assessment Report</p>
                   </div>
                 )}
              </div>
@@ -353,7 +607,10 @@ const App: React.FC = () => {
                   <label className="block text-[10px] font-black text-[#a53d4c] uppercase tracking-widest mb-2">Roboflow Endpoint URL</label>
                   <input type="text" value={modelId} onChange={(e) => setModelId(e.target.value)} placeholder="e.g. acne-type/3" className="w-full px-6 py-4 bg-white border border-[#f3d9b1] rounded-2xl focus:ring-2 focus:ring-[#a53d4c] outline-none text-sm font-bold shadow-inner" />
                 </div>
-                {/* Gemini Key Config removed to enforce environment variable usage */}
+                <div>
+                  <label className="block text-[10px] font-black text-[#a53d4c] uppercase tracking-widest mb-2">Gemini API Key (Optional)</label>
+                  <input type="password" value={geminiKey} onChange={(e) => setGeminiKey(e.target.value)} className="w-full px-6 py-4 bg-white border border-[#f3d9b1] rounded-2xl focus:ring-2 focus:ring-[#a53d4c] outline-none text-sm font-bold shadow-inner" placeholder="Gemini API Key" />
+                </div>
 
                 <button type="submit" className="w-full py-5 bg-[#a53d4c] text-white font-black uppercase tracking-widest rounded-2xl shadow-xl hover:bg-[#8b2635] transform active:scale-95 transition-all">
                   Save & Authorize
@@ -378,9 +635,15 @@ const App: React.FC = () => {
              <i className="fa-solid fa-earth-americas text-4xl text-[#a53d4c]"></i>
           </div>
           <p className="text-[10px] text-[#a53d4c] font-black uppercase tracking-[0.5em] mb-4 text-center">Scientific Support Panel</p>
-          <p className="text-[10px] text-gray-500 leading-relaxed font-bold uppercase tracking-tight text-center">
+          <p className="text-[10px] text-gray-500 leading-relaxed font-bold uppercase tracking-tight text-center mb-6">
             Research funded through Sustainable Development Goals Initiative. Powered by Google Gemini Pro Intelligence and YOLOv11 Computer Vision Models. Built for diagnostic assistance and research evaluation purposes only.
           </p>
+          <div className="bg-[#a53d4c]/5 p-4 rounded-xl border border-[#a53d4c]/10">
+            <p className="text-[9px] text-[#a53d4c] font-bold uppercase tracking-wide leading-relaxed">
+              <i className="fa-solid fa-triangle-exclamation mr-2"></i>
+              Disclaimer: The AI-driven assessment and recommendations provided by this tool are for informational purposes only and are not a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of your dermatologist or other qualified health provider with any questions you may have regarding a medical condition.
+            </p>
+          </div>
         </div>
       </footer>
     </div>

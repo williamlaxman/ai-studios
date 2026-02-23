@@ -24,6 +24,7 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
         Model Comparison Data
       </div>
       <div className="flex flex-col gap-10 items-center justify-center h-full pb-8">
+        {/* Hidden as per user request
         <StatsCircle 
           label="Lesions Detected" 
           value={`${stats.totalDetections}`} 
@@ -31,6 +32,7 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
           colorClass="border-[#a53d4c]"
           bgClass="bg-[#fde2e4]"
         />
+        */}
         <StatsCircle 
           label="AI Model Confidence" 
           value={`${(stats.avgConfidence * 100).toFixed(1)}%`} 
