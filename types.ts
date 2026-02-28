@@ -24,6 +24,8 @@ export interface AnalysisResult {
   predictions: RoboflowPrediction[];
   imageUrl: string;
   imageDimensions: { width: number; height: number };
+  classificationLabel?: string;
+  classificationPredictions?: { class: string; confidence: number }[];
 }
 
 export interface Stats {
@@ -32,17 +34,24 @@ export interface Stats {
   avgConfidence: number;
 }
 
-export interface FDADrugResult {
+export interface Review {
   id: string;
-  set_id?: string;
-  openfda?: {
-    brand_name?: string[];
-    generic_name?: string[];
-    manufacturer_name?: string[];
-    product_type?: string[];
-  };
-  active_ingredient?: string[];
-  purpose?: string[];
-  indications_and_usage?: string[];
-  dosage_and_administration?: string[];
+  author: string;
+  rating: number;
+  text: string;
+  date: string;
+  source: 'Google' | 'User';
+}
+
+export interface Clinic {
+  name: string;
+  address: string;
+  rating?: number;
+  userRatingCount?: number;
+  websiteUri?: string;
+  googleMapsUri?: string;
+  distance?: string;
+  reviews?: Review[];
+  lat?: number;
+  lng?: number;
 }

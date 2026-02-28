@@ -5,48 +5,27 @@ interface StatsCardsProps {
   stats: Stats;
 }
 
-const StatsCircle: React.FC<{ label: string, value: string, sub: string, colorClass: string, bgClass: string }> = ({ label, value, sub, colorClass, bgClass }) => {
-  return (
-    <div className="flex flex-col items-center">
-      <div className={`relative w-28 h-28 rounded-full border-[10px] ${colorClass} ${bgClass} flex flex-col items-center justify-center shadow-lg transition-transform hover:scale-105`}>
-        <span className="text-xl font-extrabold text-[#4a2c2a]">{value}</span>
-        <span className="text-[8px] font-bold text-[#4a2c2a] uppercase">{sub}</span>
-      </div>
-      <p className="mt-3 text-[10px] font-black text-[#a53d4c] uppercase tracking-tighter text-center max-w-[100px] leading-tight">{label}</p>
-    </div>
-  );
-};
-
 const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
   return (
-    <div className="bg-[#fff9f0] rounded-[2.5rem] p-8 shadow-md border border-[#f3d9b1] h-full">
-      <div className="text-[#a53d4c] font-black text-2xl uppercase tracking-tighter mb-8 text-center border-b-2 border-[#a53d4c]/20 pb-4">
-        Model Comparison Data
+    <div className="grid grid-cols-2 gap-4">
+      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col items-center justify-center text-center group hover:border-rose-200 hover:shadow-md transition-all">
+        <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+          <i className="fa-solid fa-bullseye text-rose-500"></i>
+        </div>
+        <div className="text-2xl font-bold text-gray-900 mb-1">
+          {(stats.avgConfidence * 100).toFixed(0)}<span className="text-sm text-gray-400">%</span>
+        </div>
+        <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">AI Confidence</div>
       </div>
-      <div className="flex flex-col gap-10 items-center justify-center h-full pb-8">
-        {/* Hidden as per user request
-        <StatsCircle 
-          label="Lesions Detected" 
-          value={`${stats.totalDetections}`} 
-          sub="Detections" 
-          colorClass="border-[#a53d4c]"
-          bgClass="bg-[#fde2e4]"
-        />
-        */}
-        <StatsCircle 
-          label="AI Model Confidence" 
-          value={`${(stats.avgConfidence * 100).toFixed(1)}%`} 
-          sub="Confidence" 
-          colorClass="border-[#7a2833]"
-          bgClass="bg-[#e9c46a]/20"
-        />
-        <StatsCircle 
-          label="Classification Score" 
-          value={`${stats.acneTypesFound}`} 
-          sub="Types" 
-          colorClass="border-[#e9c46a]"
-          bgClass="bg-[#fff3b0]"
-        />
+
+      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col items-center justify-center text-center group hover:border-amber-200 hover:shadow-md transition-all">
+        <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+          <i className="fa-solid fa-layer-group text-amber-500"></i>
+        </div>
+        <div className="text-2xl font-bold text-gray-900 mb-1">
+          {stats.acneTypesFound}
+        </div>
+        <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Types Detected</div>
       </div>
     </div>
   );

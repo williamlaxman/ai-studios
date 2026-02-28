@@ -7,50 +7,40 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@700&family=Poppins:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@300;400;500;600;700&display=swap');
         body {
-            font-family: 'Poppins', sans-serif;
-            background-color: #f7e7ce; /* Warm Paper / Poster Background */
-            color: #4a4a4a;
-            background-image: url('https://www.transparenttextures.com/patterns/cardboard.png');
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+            color: #1f2937;
+            overscroll-behavior-y: none;
         }
         .header-title {
             font-family: 'Oswald', sans-serif;
-            letter-spacing: 0.1em;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            letter-spacing: 0.05em;
         }
         .poster-card {
-            border-radius: 2rem;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            border-radius: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            background-color: white;
+            border: 1px solid #e5e7eb;
         }
         .section-label {
-            background-color: #a53d4c;
+            background-color: #be123c;
             color: white;
-            font-weight: 800;
-            padding: 0.5rem 1.5rem;
-            border-radius: 1rem 1rem 0 0;
-            display: inline-block;
+            font-weight: 700;
+            padding: 0.375rem 1rem;
+            border-radius: 9999px;
+            display: inline-flex;
+            align-items: center;
             text-transform: uppercase;
-            letter-spacing: 0.1em;
-            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            font-size: 0.7rem;
+            margin-bottom: 1rem;
         }
         .curved-banner {
-          clip-path: ellipse(80% 100% at 50% 0%);
+          clip-path: ellipse(150% 100% at 50% 0%);
         }
     </style>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.2.4",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.41.0",
-    "react-markdown": "https://esm.sh/react-markdown@^10.1.0",
-    "vite": "https://esm.sh/vite@^7.3.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.4"
-  }
-}
-</script>
 </head>
 <body>
     <div id="root"></div>
