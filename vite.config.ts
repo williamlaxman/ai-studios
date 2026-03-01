@@ -13,7 +13,8 @@ export default defineConfig(({ mode }) => {
       // Robustly handle Vercel's environment where process.env might hold the key
       // if loadEnv doesn't pick it up from a .env file
       'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY),
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || process.env.GEMINI_API_KEY)
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || process.env.GEMINI_API_KEY),
+      'process.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)
     }
   }
 })

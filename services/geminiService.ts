@@ -14,7 +14,10 @@ export interface AIInsights {
 }
 
 export const findNearbyClinics = async (lat: number, lng: number, userApiKey?: string): Promise<Clinic[]> => {
-  const apiKey = userApiKey || process.env.GEMINI_API_KEY || process.env.API_KEY;
+  const apiKey = userApiKey || 
+                 import.meta.env.VITE_GEMINI_API_KEY || 
+                 process.env.GEMINI_API_KEY || 
+                 process.env.API_KEY;
   
   if (!apiKey) {
     console.error("Missing Gemini API Key for Maps search.");
@@ -130,7 +133,10 @@ export const findNearbyClinics = async (lat: number, lng: number, userApiKey?: s
 };
 
 export const detectLesionsWithGemini = async (imageBase64: string, userApiKey?: string, classificationContext?: string): Promise<RoboflowPrediction[]> => {
-  const apiKey = userApiKey || process.env.GEMINI_API_KEY || process.env.API_KEY;
+  const apiKey = userApiKey || 
+                 import.meta.env.VITE_GEMINI_API_KEY || 
+                 process.env.GEMINI_API_KEY || 
+                 process.env.API_KEY;
   if (!apiKey) throw new Error("Missing Gemini API Key");
 
   const ai = new GoogleGenAI({ apiKey });
@@ -270,7 +276,10 @@ export const detectLesionsWithGemini = async (imageBase64: string, userApiKey?: 
 
 export const getSkinCareInsights = async (imageBase64: string, predictions?: RoboflowPrediction[], userApiKey?: string, patientHistory?: PatientHistory, classificationContext?: string): Promise<AIInsights> => {
   // Prioritize user-provided key, then environment variables
-  const apiKey = userApiKey || process.env.GEMINI_API_KEY || process.env.API_KEY;
+  const apiKey = userApiKey || 
+                 import.meta.env.VITE_GEMINI_API_KEY || 
+                 process.env.GEMINI_API_KEY || 
+                 process.env.API_KEY;
 
   if (!apiKey) {
     console.error("Missing Gemini API Key.");
@@ -279,9 +288,14 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
       severity: "Moderate",
       acneType: "Unknown",
       objectiveFindings: ["The Google Gemini API Key is missing."],
-      treatmentPlan: ["Please configure it in the settings menu or set the `GEMINI_API_KEY` environment variable."],
+      treatmentPlan: [
+        "1. Go to your Vercel Project Settings.",
+        "2. Add an Environment Variable named VITE_GEMINI_API_KEY.",
+        "3. Paste your key from Google AI Studio.",
+        "4. REDEPLOY your application."
+      ],
       ingredientRationale: [],
-      disclaimer: "System Error",
+      disclaimer: "System Error: Missing API Key",
       recommendedIngredients: [],
       recommendedProducts: []
     };
