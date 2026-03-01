@@ -13,31 +13,39 @@ import { getSkinCareInsights, AIInsights } from './services/geminiService';
 const Tooltip: React.FC<{ children: React.ReactNode; content: string }> = ({ children, content }) => {
   const [isVisible, setIsVisible] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const [offset, setOffset] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [shift, setShift] = useState(0);
 
   useEffect(() => {
-    if (isVisible && tooltipRef.current) {
-      const rect = tooltipRef.current.getBoundingClientRect();
+    if (isVisible && containerRef.current && tooltipRef.current) {
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const tooltipRect = tooltipRef.current.getBoundingClientRect();
       const screenWidth = window.innerWidth;
       
-      // Calculate overflow
-      const rightOverflow = rect.right - screenWidth + 16; // 16px padding
-      const leftOverflow = 16 - rect.left;
+      // The tooltip is initially centered above the container via CSS (left: 50%, transform: translateX(-50%))
+      // We need to calculate if this initial position causes overflow
+      
+      // Expected left and right edges of the tooltip in viewport coordinates
+      const expectedLeft = containerRect.left + containerRect.width / 2 - tooltipRect.width / 2;
+      const expectedRight = containerRect.left + containerRect.width / 2 + tooltipRect.width / 2;
 
-      if (rightOverflow > 0) {
-        setOffset(-rightOverflow);
-      } else if (leftOverflow > 0) {
-        setOffset(leftOverflow);
-      } else {
-        setOffset(0);
+      let newShift = 0;
+
+      if (expectedRight > screenWidth - 16) {
+        // Overflow right: shift left by the overflow amount
+        newShift = (screenWidth - 16) - expectedRight;
+      } else if (expectedLeft < 16) {
+        // Overflow left: shift right by the overflow amount
+        newShift = 16 - expectedLeft;
       }
-    } else {
-        setOffset(0);
+
+      setShift(newShift);
     }
   }, [isVisible]);
 
   return (
     <div 
+      ref={containerRef}
       className="relative flex items-center"
       onMouseEnter={() => setIsVisible(true)}
       onMouseLeave={() => setIsVisible(false)}
@@ -49,14 +57,14 @@ const Tooltip: React.FC<{ children: React.ReactNode; content: string }> = ({ chi
             ref={tooltipRef}
             className="absolute bottom-full left-1/2 mb-2 w-56 md:w-64 p-2 md:p-3 bg-gray-900/95 text-white text-[10px] md:text-xs rounded-xl shadow-xl z-50 backdrop-blur-sm border border-white/10 animate-in fade-in zoom-in duration-200 pointer-events-none"
             style={{ 
-                transform: `translateX(calc(-50% + ${offset}px))` 
+                transform: `translateX(calc(-50% + ${shift}px))`
             }}
         >
           {content}
           <div 
             className="absolute top-full left-1/2 border-4 border-transparent border-t-gray-900/95"
             style={{ 
-                transform: `translateX(calc(-50% - ${offset}px))` 
+                transform: `translateX(calc(-50% - ${shift}px))`
             }}
           ></div>
         </div>
@@ -394,7 +402,7 @@ const App: React.FC = () => {
   };
 
   // Helper to resize image
-  const resizeImage = (file: File, maxWidth = 480): Promise<{ base64: string; width: number; height: number }> => {
+  const resizeImage = (file: File, targetSize = 224): Promise<{ base64: string; width: number; height: number }> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -403,12 +411,23 @@ const App: React.FC = () => {
         img.src = event.target?.result as string;
         img.onload = () => {
           const canvas = document.createElement('canvas');
+          
+          // ResNet-50 typically expects 224x224 images. 
+          // Resizing to exactly 224x224 or a max dimension of 224 significantly speeds up 
+          // both the Roboflow classification and Gemini API calls on mobile networks.
           let width = img.width;
           let height = img.height;
           
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
+          if (width > height) {
+            if (width > targetSize) {
+              height = Math.round((height * targetSize) / width);
+              width = targetSize;
+            }
+          } else {
+            if (height > targetSize) {
+              width = Math.round((width * targetSize) / height);
+              height = targetSize;
+            }
           }
           
           canvas.width = width;
@@ -416,7 +435,7 @@ const App: React.FC = () => {
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
           resolve({
-            base64: canvas.toDataURL('image/jpeg', 0.5),
+            base64: canvas.toDataURL('image/jpeg', 0.6),
             width,
             height
           });
@@ -858,7 +877,47 @@ ${insights.disclaimer}
                 onChange={(e) => setConfidenceThreshold(Number(e.target.value))}
                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#a53d4c]"
               />
-              <p className="text-[8px] text-gray-400 mt-1 text-center">Adjust to filter detections based on model confidence</p>
+              <p className="text-[9px] md:text-[10px] text-gray-500 mt-2 text-center leading-relaxed">
+                <strong>Lower this</strong> if the AI is missing spots. <strong>Raise it</strong> if the AI is highlighting things that aren't acne.
+              </p>
+            </div>
+
+            {/* Photo Instructions */}
+            <div className="mb-6 bg-white/40 border border-[#a53d4c]/20 rounded-2xl p-4 md:p-5 shadow-sm">
+              <h4 className="text-[10px] md:text-xs font-black text-[#a53d4c] uppercase tracking-widest mb-3 flex items-center gap-2">
+                <i className="fa-solid fa-camera-retro"></i> Photo Guidelines
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                <div className="bg-white/60 rounded-xl p-3 border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-5 h-5 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center text-[8px] border border-amber-100">
+                      <i className="fa-solid fa-sun"></i>
+                    </div>
+                    <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">Lighting</span>
+                  </div>
+                  <p className="text-[9px] text-gray-500 leading-relaxed">Face a window for natural, even lighting. Avoid harsh shadows or dark rooms.</p>
+                </div>
+                
+                <div className="bg-white/60 rounded-xl p-3 border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-5 h-5 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center text-[8px] border border-rose-100">
+                      <i className="fa-solid fa-magnifying-glass-plus"></i>
+                    </div>
+                    <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">Focus</span>
+                  </div>
+                  <p className="text-[9px] text-gray-500 leading-relaxed">Take a close-up of the affected area or your whole face. Take separate photos if needed.</p>
+                </div>
+
+                <div className="bg-white/60 rounded-xl p-3 border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-[8px] border border-emerald-100">
+                      <i className="fa-solid fa-eye"></i>
+                    </div>
+                    <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">Clarity</span>
+                  </div>
+                  <p className="text-[9px] text-gray-500 leading-relaxed">Ensure the photo is sharp and in focus. Remove glasses and pull hair back.</p>
+                </div>
+              </div>
             </div>
 
             <div 
@@ -941,7 +1000,7 @@ ${insights.disclaimer}
 
         {/* Right Content Area: Results and Discussion */}
         <div className="lg:col-span-8 space-y-6 md:space-y-8">
-          <div className="bg-[#fff9f0] poster-card p-1 shadow-md overflow-hidden border border-[#f3d9b1]">
+          <div className="bg-[#fff9f0] poster-card shadow-md overflow-hidden border border-[#f3d9b1]">
              <div className="bg-[#a53d4c] px-4 py-2 md:px-8 md:py-3 text-white flex justify-between items-center">
                 <h2 className="text-xs md:text-sm font-black uppercase tracking-widest">Results and Discussion</h2>
                 {isDemo && <span className="text-[8px] md:text-[9px] bg-white/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">Using Demo Data</span>}
@@ -995,22 +1054,24 @@ ${insights.disclaimer}
                     
                     {insights ? (
                       <div className="mt-6 md:mt-8 bg-white/60 p-4 md:p-8 rounded-[2rem] border border-[#a53d4c]/10 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 md:mb-6 gap-3 md:gap-0">
-                          <div className="flex items-center gap-3">
-                            <div className="bg-[#a53d4c] p-2 rounded-lg">
+                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
+                          <div className="flex items-center gap-3 w-full md:w-auto">
+                            <div className="bg-[#a53d4c] p-2.5 rounded-xl shrink-0">
                               <i className="fa-solid fa-user-doctor text-white text-lg md:text-xl"></i>
                             </div>
-                            <h3 className="text-xs md:text-sm font-black text-[#a53d4c] uppercase tracking-widest">Clinical AI Assessment</h3>
-                            <Tooltip content="These insights are generated by an AI model based on the visual analysis of your skin. They are for informational purposes only and do not constitute a medical diagnosis. Always consult a dermatologist.">
-                              <i className="fa-solid fa-circle-info text-[#a53d4c] opacity-50 hover:opacity-100 cursor-help ml-1 text-sm md:text-base" aria-label="Learn more about AI assessment limitations"></i>
-                            </Tooltip>
+                            <div className="flex-1 flex items-center gap-2">
+                              <h3 className="text-xs md:text-sm font-black text-[#a53d4c] uppercase tracking-widest leading-tight">Clinical AI Assessment</h3>
+                              <Tooltip content="These insights are generated by an AI model based on the visual analysis of your skin. They are for informational purposes only and do not constitute a medical diagnosis. Always consult a dermatologist.">
+                                <i className="fa-solid fa-circle-info text-[#a53d4c] opacity-50 hover:opacity-100 cursor-help text-sm md:text-base shrink-0" aria-label="Learn more about AI assessment limitations"></i>
+                              </Tooltip>
+                            </div>
                           </div>
                           
                           <button 
                             type="button"
                             onClick={handleRefreshInsights} 
                             disabled={isRefreshingInsights}
-                            className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-[#a53d4c] hover:bg-[#a53d4c]/10 px-3 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 w-full md:w-auto justify-center md:justify-start"
+                            className="text-[10px] md:text-[10px] font-bold uppercase tracking-wider text-[#a53d4c] bg-[#a53d4c]/5 hover:bg-[#a53d4c]/10 px-4 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 w-full md:w-auto border border-[#a53d4c]/10"
                           >
                             <i className={`fa-solid fa-rotate-right ${isRefreshingInsights ? 'animate-spin' : ''}`}></i>
                             {isRefreshingInsights ? 'Refreshing...' : 'Refresh Insights'}
@@ -1029,28 +1090,28 @@ ${insights.disclaimer}
                           </div>
 
                           {/* Tabs for Insights */}
-                          <div className="bg-white/50 rounded-2xl border border-gray-100 overflow-hidden">
-                            <div className="flex border-b border-gray-100">
+                          <div className="bg-white/50 rounded-2xl border border-gray-100">
+                            <div className="grid grid-cols-3 border-b border-gray-100 rounded-t-2xl overflow-hidden">
                               <button 
                                 type="button"
                                 onClick={() => setActiveTab('findings')}
-                                className={`flex-1 py-3 text-[10px] md:text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'findings' ? 'bg-[#a53d4c] text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                                className={`py-3 px-1 text-[9px] md:text-xs font-bold uppercase tracking-wider transition-colors flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 ${activeTab === 'findings' ? 'bg-[#a53d4c] text-white' : 'text-gray-500 hover:bg-gray-50 border-r border-gray-100'}`}
                               >
-                                <i className="fa-solid fa-microscope mr-2"></i> Findings
+                                <i className="fa-solid fa-microscope text-sm md:text-base"></i> <span className="hidden sm:inline">Findings</span><span className="sm:hidden">Find</span>
                               </button>
                               <button 
                                 type="button"
                                 onClick={() => setActiveTab('treatment')}
-                                className={`flex-1 py-3 text-[10px] md:text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'treatment' ? 'bg-[#a53d4c] text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                                className={`py-3 px-1 text-[9px] md:text-xs font-bold uppercase tracking-wider transition-colors flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 ${activeTab === 'treatment' ? 'bg-[#a53d4c] text-white' : 'text-gray-500 hover:bg-gray-50 border-r border-gray-100'}`}
                               >
-                                <i className="fa-solid fa-prescription-bottle-medical mr-2"></i> Treatment
+                                <i className="fa-solid fa-prescription-bottle-medical text-sm md:text-base"></i> <span className="hidden sm:inline">Treatment</span><span className="sm:hidden">Treat</span>
                               </button>
                               <button 
                                 type="button"
                                 onClick={() => setActiveTab('rationale')}
-                                className={`flex-1 py-3 text-[10px] md:text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'rationale' ? 'bg-[#a53d4c] text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                                className={`py-3 px-1 text-[9px] md:text-xs font-bold uppercase tracking-wider transition-colors flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 ${activeTab === 'rationale' ? 'bg-[#a53d4c] text-white' : 'text-gray-500 hover:bg-gray-50'}`}
                               >
-                                <i className="fa-solid fa-mortar-pestle mr-2"></i> Rationale
+                                <i className="fa-solid fa-mortar-pestle text-sm md:text-base"></i> <span className="hidden sm:inline">Rationale</span><span className="sm:hidden">Why</span>
                               </button>
                             </div>
 

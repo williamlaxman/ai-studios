@@ -7,8 +7,28 @@ interface DiagnosisCardProps {
 }
 
 const DiagnosisCard: React.FC<DiagnosisCardProps> = ({ severity, acneType, predictions }) => {
+  const normalizeSeverity = (sev: string) => {
+    if (!sev) return 'Unknown';
+    const lowerSev = sev.toLowerCase();
+    if (lowerSev.includes('normal') || lowerSev.includes('clear') || lowerSev.includes('none')) return 'Normal';
+    if (lowerSev.includes('mild')) return 'Mild';
+    if (lowerSev.includes('moderate')) return 'Moderate';
+    if (lowerSev.includes('severe')) return 'Severe';
+    return sev; // Fallback to original if no match
+  };
+
+  const normalizedSeverity = normalizeSeverity(severity);
+
   const getSeverityConfig = (sev: string) => {
     switch (sev?.toLowerCase()) {
+      case 'normal':
+        return {
+          bg: 'bg-blue-50',
+          text: 'text-blue-700',
+          border: 'border-blue-100',
+          icon: 'fa-face-grin-stars',
+          label: 'Normal / Clear Skin'
+        };
       case 'mild': 
         return {
           bg: 'bg-emerald-50',
@@ -44,7 +64,7 @@ const DiagnosisCard: React.FC<DiagnosisCardProps> = ({ severity, acneType, predi
     }
   };
 
-  const config = getSeverityConfig(severity);
+  const config = getSeverityConfig(normalizedSeverity);
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 relative overflow-hidden group hover:shadow-md transition-all duration-300">
@@ -63,7 +83,7 @@ const DiagnosisCard: React.FC<DiagnosisCardProps> = ({ severity, acneType, predi
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-2">Severity Level</span>
             <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${config.bg} ${config.text} ${config.border}`}>
               <i className={`fa-solid ${config.icon} text-sm`}></i>
-              <span className="text-sm font-bold">{severity || "Unknown"}</span>
+              <span className="text-sm font-bold">{config.label}</span>
             </div>
           </div>
           
