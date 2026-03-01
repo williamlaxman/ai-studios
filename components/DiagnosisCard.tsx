@@ -68,15 +68,17 @@ const DiagnosisCard: React.FC<DiagnosisCardProps> = ({ severity, acneType, predi
           </div>
           
           <div>
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-2">Primary Classification</span>
-            <div className="text-lg font-bold text-gray-900 leading-tight break-words mb-3">
-              {acneType || "Unspecified Acne"}
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-2">Detected Conditions</span>
+            <div className="text-lg font-bold text-gray-900 leading-tight break-words mb-3 capitalize">
+              {predictions && predictions.length > 0 
+                ? predictions.map(p => p.class).join(", ") 
+                : (acneType || "Unspecified Acne")}
             </div>
             
             {predictions && predictions.length > 0 && (
               <div className="space-y-2 mt-4 pt-4 border-t border-gray-100">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Model Confidence</span>
-                {predictions.slice(0, 3).map((pred, idx) => (
+                {predictions.slice(0, 5).map((pred, idx) => (
                   <div key={idx} className="flex items-center gap-2">
                     <div className="flex-1">
                       <div className="flex justify-between text-[10px] font-medium text-gray-600 mb-1">

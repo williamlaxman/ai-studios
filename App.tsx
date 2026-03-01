@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import TreatmentPlan from './components/TreatmentPlan';
 import { Stats, AnalysisResult, PatientHistory } from './types';
 import StatsCards from './components/StatsCards';
@@ -351,108 +351,168 @@ const App: React.FC = () => {
       // 1. Pre-process Image (Resize for speed)
       const { base64: imageBase64, width, height } = await resizeImage(selectedFile);
 
-      // 2. Parallel Execution: Classify (ResNet) AND Detect (Roboflow Object Detection)
-      // User requested to use the model's own detection, not Gemini's.
-      // We pass the resized imageBase64 string to speed up upload/inference
-      const [classificationData, detectionResult] = await Promise.all([
-        classifyImage(imageBase64).catch(err => {
-            console.warn("Roboflow Classification failed:", err);
-            return null;
-        }),
-        // Request detections with a very low threshold (1%) so we get EVERYTHING.
-        // The slider in the UI will then filter these results visually.
-        analyzeImage(imageBase64, 1, { width, height }).catch(err => { 
+      // 2. Parallel Execution: Start Roboflow requests immediately
+      const detectionPromise = analyzeImage(imageBase64, 1, { width, height })
+        .catch(err => { 
             console.warn("Roboflow Detection failed:", err);
             return null;
-        })
-      ]);
+        });
 
-      // 3. Process Classification Result
-      let classificationLabel = "";
-      let classificationConf = 0;
-      let classificationPredictions: { class: string; confidence: number }[] = [];
+      const classificationPromise = classifyImage(imageBase64)
+        .catch(err => {
+            console.warn("Roboflow Classification failed:", err);
+            return null;
+        });
 
-      if (classificationData) {
-        if (classificationData.predictions && classificationData.predictions.length > 0) {
-            // Sort by confidence
-            classificationPredictions = classificationData.predictions
-                .map((p: any) => ({ class: p.class, confidence: p.confidence }))
-                .sort((a: any, b: any) => b.confidence - a.confidence);
-            
-            const topPred = classificationPredictions[0];
-            classificationLabel = topPred.class;
-            classificationConf = topPred.confidence;
-        } else if (classificationData.top) {
-            classificationLabel = classificationData.top;
-            classificationConf = classificationData.confidence;
-            classificationPredictions = [{ class: classificationData.top, confidence: classificationData.confidence }];
-        }
+      // 3. Wait for Detection (Critical Path for Visual Feedback)
+      const detectionResult = await detectionPromise;
+
+      if (!detectionResult) {
+          throw new Error("Could not detect lesions. Please check your connection and try again.");
       }
-      
-      console.log("Roboflow Classification:", classificationLabel, classificationConf);
 
-      // Process Detection Result
-      let predictions = detectionResult ? detectionResult.predictions : [];
+      // 4. Initial Render (Detections Only)
+      // Infer classification from detections initially while we wait for the specialized classifier
+      let predictions = detectionResult.predictions;
       
-      // Fallback: If classification failed but we have detections, infer type from dominant lesion
-      if (!classificationLabel && predictions.length > 0) {
-          const counts = predictions.reduce((acc: any, p) => {
-              acc[p.class] = (acc[p.class] || 0) + 1;
-              return acc;
-          }, {});
-          const topClass = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+      // Filter predictions based on the CURRENT slider value (default 40%)
+      // This ensures stats and Gemini only see what the user sees
+      const filteredPredictions = predictions.filter((p: any) => p.confidence * 100 >= confidenceThreshold);
+      
+      let classificationLabel = "Analyzing...";
+      let classificationPredictions: { class: string; confidence: number }[] = [];
+      
+      if (filteredPredictions.length > 0) {
+          const classConfidences: Record<string, number[]> = {};
+          filteredPredictions.forEach((p: any) => {
+              if (!classConfidences[p.class]) classConfidences[p.class] = [];
+              classConfidences[p.class].push(p.confidence);
+          });
+          
+          const topClass = Object.keys(classConfidences).reduce((a, b) => classConfidences[a].length > classConfidences[b].length ? a : b);
           classificationLabel = `${topClass} Dominant`;
           
-          // If we have no classification predictions (because classify failed), infer them from detection counts
-          if (classificationPredictions.length === 0) {
-             const total = predictions.length;
-             classificationPredictions = Object.keys(counts).map(cls => ({
+          classificationPredictions = Object.keys(classConfidences).map(cls => {
+              const confs = classConfidences[cls];
+              const avgConf = confs.reduce((a, b) => a + b, 0) / confs.length;
+              return {
                  class: cls,
-                 confidence: counts[cls] / total
-             })).sort((a, b) => b.confidence - a.confidence);
-          }
+                 confidence: avgConf
+              };
+          }).sort((a, b) => b.confidence - a.confidence);
+      } else {
+          classificationLabel = "No Acne Detected";
       }
-      
-      // Construct AnalysisResult
-      // No need to reload image, we have dimensions from resizeImage
-      
-      const analysis: AnalysisResult = {
-        predictions: predictions,
+
+      const initialAnalysis = {
+        predictions: predictions, // Keep ALL predictions for the visual slider to work
         imageUrl: imageBase64,
         imageDimensions: { width, height },
         classificationLabel: classificationLabel,
         classificationPredictions: classificationPredictions
       };
       
-      // 2. Calculate Stats
-      const uniqueClasses = new Set(analysis.predictions.map(p => p.class));
-      // Use Roboflow confidence if available, otherwise average of boxes
-      const avgConfidence = classificationConf > 0 ? classificationConf : (analysis.predictions.length > 0 ? analysis.predictions.reduce((acc, p) => acc + p.confidence, 0) / analysis.predictions.length : 0);
+      // Calculate Stats based on FILTERED predictions
+      const uniqueClasses = new Set(filteredPredictions.map((p: any) => p.class));
+      // Initially use average confidence of detections since we don't have the classifier result yet.
+      // We will update this later when the classifier returns.
+      const initialAvgConfidence = filteredPredictions.length > 0 ? filteredPredictions.reduce((acc: any, p: any) => acc + p.confidence, 0) / filteredPredictions.length : 0;
       
       const newStats = {
-        totalDetections: analysis.predictions.length,
+        totalDetections: filteredPredictions.length,
         acneTypesFound: uniqueClasses.size,
-        avgConfidence: avgConfidence,
+        avgConfidence: initialAvgConfidence,
       };
 
-      // IMMEDIATE UPDATE: Show visual results first!
+      // IMMEDIATE UPDATE: Show visual results!
       setStats(newStats);
-      setResult(analysis);
+      setResult(initialAnalysis);
       setIsAnalyzing(false); // Stop main loading spinner
 
-      // 3. Generate Insights in Background
+      // 5. Handle Classification Update (in background)
+      // We wait for classification to complete before sending to Gemini to ensure accuracy
+      const classificationData = await classificationPromise;
+      
+      if (classificationData) {
+          let newLabel = "";
+          let newConf = 0;
+
+          // Handle Roboflow response formats (Array vs Object)
+          if (classificationData.predictions) {
+              let newPreds: { class: string; confidence: number }[] = [];
+              if (Array.isArray(classificationData.predictions)) {
+                  // Format: [{ class: "name", confidence: 0.9 }, ...]
+                  newPreds = classificationData.predictions
+                      .map((p: any) => ({ class: p.class, confidence: p.confidence }))
+                      .sort((a: any, b: any) => b.confidence - a.confidence);
+              } else if (typeof classificationData.predictions === 'object') {
+                  // Format: { "class_name": { confidence: 0.9 }, ... } OR { "class_name": 0.9, ... }
+                  newPreds = Object.entries(classificationData.predictions)
+                      .map(([className, val]: [string, any]) => {
+                          const conf = typeof val === 'number' ? val : val.confidence;
+                          return { class: className, confidence: conf };
+                      })
+                      .sort((a, b) => b.confidence - a.confidence);
+              }
+              
+              if (newPreds.length > 0) {
+                  newLabel = newPreds[0].class;
+                  newConf = newPreds[0].confidence;
+              }
+          } 
+          
+          // Fallback to top/confidence if predictions parsing failed or was empty, but top exists
+          if (!newLabel && classificationData.top) {
+              newLabel = classificationData.top;
+              newConf = classificationData.confidence;
+          }
+
+          if (newLabel) {
+              console.log("Updated Classification:", newLabel);
+              classificationLabel = newLabel; // Update local var for Gemini
+              
+              // Update stats with the NEW, more accurate confidence from the classifier
+              setStats(prev => ({
+                  ...prev,
+                  avgConfidence: newConf > 0 ? newConf : prev.avgConfidence
+              }));
+
+              setResult(prev => {
+                  if (!prev) return null;
+                  return {
+                      ...prev,
+                      classificationLabel: newLabel
+                      // DO NOT overwrite classificationPredictions! 
+                      // The user wants to see ALL types detected by the object detection model, 
+                      // not just the single primary classification.
+                  };
+              });
+          }
+      }
+
+      // 6. Generate Insights (Now using the ACTUAL detection/classification data)
       setIsGeneratingInsights(true);
       
       try {
-        let aiInsights = await getSkinCareInsights(analysis.predictions, analysis.imageUrl, geminiKey || undefined, patientHistory, classificationLabel);
+        // Pass FILTERED predictions to Gemini so it doesn't hallucinate based on low-confidence noise
+        let aiInsights = await getSkinCareInsights(
+            initialAnalysis.imageUrl, 
+            filteredPredictions, 
+            geminiKey || undefined, 
+            patientHistory, 
+            classificationLabel
+        );
         
-        if (aiInsights.clinicalImpression === "Analysis Failed" || aiInsights.clinicalImpression === "System Error") {
+        if (!aiInsights || aiInsights.clinicalImpression === "Analysis Failed" || aiInsights.clinicalImpression === "System Error") {
            console.log("Gemini Analysis failed, retrying immediately...");
-           aiInsights = await getSkinCareInsights(analysis.predictions, analysis.imageUrl, geminiKey || undefined, patientHistory, classificationLabel);
+           // Retry once
+           aiInsights = await getSkinCareInsights(initialAnalysis.imageUrl, filteredPredictions, geminiKey || undefined, patientHistory, classificationLabel);
         }
         
-        setInsights(aiInsights);
-        setRecommendedIngredients(aiInsights.recommendedIngredients);
+        if (aiInsights) {
+            setInsights(aiInsights);
+            setRecommendedIngredients(aiInsights.recommendedIngredients);
+        }
       } catch (insightErr) {
         console.error("Insight Generation Failed:", insightErr);
         // We don't fail the whole flow, just the insights part
@@ -472,12 +532,12 @@ const App: React.FC = () => {
     setIsRefreshingInsights(true);
     
     try {
-      let aiInsights = await getSkinCareInsights(result.predictions, result.imageUrl, geminiKey || undefined, patientHistory, result.classificationLabel);
+      let aiInsights = await getSkinCareInsights(result.imageUrl, result.predictions, geminiKey || undefined, patientHistory, result.classificationLabel);
       
       if (aiInsights.clinicalImpression === "Analysis Failed" || aiInsights.clinicalImpression === "System Error") {
          console.log("Gemini Analysis failed, retrying once...");
          await new Promise(r => setTimeout(r, 1000)); // Wait 1s
-         aiInsights = await getSkinCareInsights(result.predictions, result.imageUrl, geminiKey || undefined, patientHistory, result.classificationLabel);
+         aiInsights = await getSkinCareInsights(result.imageUrl, result.predictions, geminiKey || undefined, patientHistory, result.classificationLabel);
       }
       
       setInsights(aiInsights);
@@ -540,6 +600,40 @@ ${insights.disclaimer}
   };
 
   const isDemo = isDemoMode();
+
+  const displayStats = useMemo(() => {
+    if (!result) return { ...stats, dynamicPredictions: [] };
+    
+    // Filter detections based on the slider
+    const threshold = confidenceThreshold / 100;
+    const filteredDetections = result.predictions.filter((p: any) => p.confidence >= threshold);
+    const uniqueClasses = new Set(filteredDetections.map((p: any) => p.class));
+    
+    // Dynamically calculate average confidence for each detected class based on the filtered boxes
+    const classConfidences: Record<string, number[]> = {};
+    filteredDetections.forEach((p: any) => {
+        if (!classConfidences[p.class]) classConfidences[p.class] = [];
+        classConfidences[p.class].push(p.confidence);
+    });
+    
+    const dynamicPredictions = Object.keys(classConfidences).map(cls => {
+        const confs = classConfidences[cls];
+        const avgConf = confs.reduce((a, b) => a + b, 0) / confs.length;
+        return {
+           class: cls,
+           confidence: avgConf
+        };
+    }).sort((a, b) => b.confidence - a.confidence);
+    
+    return {
+      ...stats,
+      totalDetections: filteredDetections.length,
+      acneTypesFound: uniqueClasses.size,
+      // We keep the original AI Confidence (from the classifier) unless it's 0, then we average the visible boxes
+      avgConfidence: stats.avgConfidence > 0 ? stats.avgConfidence : (filteredDetections.length > 0 ? filteredDetections.reduce((acc: any, p: any) => acc + p.confidence, 0) / filteredDetections.length : 0),
+      dynamicPredictions
+    };
+  }, [result, confidenceThreshold, stats]);
 
   return (
     <div className="min-h-screen bg-[#f7e7ce] pb-10 md:pb-20">
@@ -787,7 +881,7 @@ ${insights.disclaimer}
                         <DiagnosisCard 
                           severity={insights.severity} 
                           acneType={result?.classificationLabel || insights.acneType} 
-                          predictions={result?.classificationPredictions}
+                          predictions={displayStats.dynamicPredictions}
                         />
                     ) : result ? (
                         // Skeleton for Diagnosis Card
@@ -797,7 +891,7 @@ ${insights.disclaimer}
                             <div className="h-2 bg-gray-200 rounded w-full"></div>
                         </div>
                     ) : null}
-                    <StatsCards stats={stats} />
+                    <StatsCards stats={displayStats} />
                   </div>
                 </div>
                 

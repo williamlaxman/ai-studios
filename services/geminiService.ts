@@ -25,7 +25,7 @@ export const findNearbyClinics = async (lat: number, lng: number, userApiKey?: s
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       contents: "Find 5 highly-rated dermatology clinics or hospitals nearby that treat acne. Provide their details, including a summary of their reviews or key review snippets if available.",
       config: {
         tools: [{ googleMaps: {} }],
@@ -268,7 +268,7 @@ export const detectLesionsWithGemini = async (imageBase64: string, userApiKey?: 
   }
 };
 
-export const getSkinCareInsights = async (predictions: RoboflowPrediction[], imageBase64: string, userApiKey?: string, patientHistory?: PatientHistory, classificationContext?: string): Promise<AIInsights> => {
+export const getSkinCareInsights = async (imageBase64: string, predictions?: RoboflowPrediction[], userApiKey?: string, patientHistory?: PatientHistory, classificationContext?: string): Promise<AIInsights> => {
   // Prioritize user-provided key, then environment variables
   const apiKey = userApiKey || process.env.GEMINI_API_KEY || process.env.API_KEY;
 
@@ -289,12 +289,14 @@ export const getSkinCareInsights = async (predictions: RoboflowPrediction[], ima
 
   const ai = new GoogleGenAI({ apiKey });
   
-  const counts = predictions.reduce((acc: any, p) => {
-    acc[p.class] = (acc[p.class] || 0) + 1;
-    return acc;
-  }, {});
-
-  const countStr = Object.entries(counts).map(([name, count]) => `${count} ${name}(s)`).join(", ");
+  let countStr = "Not available";
+  if (predictions) {
+    const counts = predictions.reduce((acc: any, p) => {
+      acc[p.class] = (acc[p.class] || 0) + 1;
+      return acc;
+    }, {});
+    countStr = Object.entries(counts).map(([name, count]) => `${count} ${name}(s)`).join(", ");
+  }
 
   let historyContext = "";
   if (patientHistory) {
@@ -309,56 +311,36 @@ export const getSkinCareInsights = async (predictions: RoboflowPrediction[], ima
   }
 
     const prompt = `
-    You are an expert dermatologist AI. You are provided with:
-    1. An image of a patient's skin.
-    2. A list of detections from a preliminary object detection model: ${countStr} (Total detected: ${predictions.length}).
-    ${classificationContext ? `3. A specialized classification model has diagnosed this image as: "${classificationContext}". You MUST respect this diagnosis as the primary classification.` : ''}
+    You are an expert dermatologist AI. You are provided with an image of a patient's skin.
+    ${predictions ? `A preliminary object detection model found: ${countStr} (Total: ${predictions.length}).` : ''}
+    ${classificationContext ? `A specialized classification model has diagnosed this as: "${classificationContext}".` : ''}
     ${historyContext}
     
-    **CRITICAL INSTRUCTION ON SEVERITY:**
-    The object detection model provided might be inaccurate or miss lesions (e.g., it might detect only 1 lesion when there are clearly many).
-    You MUST **visually analyze the provided image yourself** to determine the true severity of the acne.
-    - **Trust your eyes over the detection count.** If you see many papules/pustules but the count is low, classify it as Moderate or Severe based on visual evidence.
+    **CRITICAL INSTRUCTION:**
+    Visually analyze the image to determine the true severity and type of acne.
     - **Mild:** Mostly Comedones, or very few scattered inflammatory lesions.
     - **Moderate:** Distinct presence of multiple inflammatory lesions (Papules/Pustules).
     - **Severe:** Widespread inflammatory lesions, presence of Nodules/Cysts, or scarring.
 
-    **CRITICAL INSTRUCTION ON ACNE TYPE:**
-    ${classificationContext ? `Since the specialized model classified this as "${classificationContext}", your "acneType" field MUST align with this diagnosis (e.g., if classified as "Pustular", the type should be "Pustular Acne" or "Papulopustular Acne").` : 'Classify the dominant acne type based on your visual analysis.'}
-
-    **DERMATOLOGICAL LOGIC FRAMEWORK:**
-    1. **Analyze Lesion Type & Severity:**
-       - **Comedonal (Mild):** Focus on exfoliation (Salicylic Acid, Retinoids).
-       - **Papulopustular (Mild-Moderate):** Focus on antibacterial/anti-inflammatory (Benzoyl Peroxide, Niacinamide).
-       - **Nodulocystic (Severe):** Focus on barrier repair and **URGENT** dermatologist referral. Avoid harsh scrubs.
-    
-    2. **Construct Routine:**
-       - **AM:** Cleanse -> Treat -> Moisturize -> **Sunscreen**.
-       - **PM:** Double Cleanse -> Treat -> Moisturize.
-    
-    3. **Safety:**
-       - "Start Low, Go Slow" for actives.
-       - Suggest gentler alternatives for sensitive skin.
-
     Provide a professional, structured clinical assessment mimicking how a dermatologist would write a patient chart.
     
     IMPORTANT GUIDELINES: 
-    1. Recommend 3-5 specific skincare products available in the Philippines.
+    1. Recommend 3 specific skincare products available in the Philippines.
     2. Provide a strong medical disclaimer.
     3. Ensure recommendations align with your VISUAL assessment.
-    4. TREATMENT PLAN: Create a structured AM/PM routine.
-    5. CLINICAL IMPRESSION: 2-3 sentences. State severity explicitly.
+    4. TREATMENT PLAN: Create a concise AM/PM routine (Max 5 steps each).
+    5. CLINICAL IMPRESSION: 1-2 sentences. State severity explicitly.
     6. **TIMELINE:** Include expected timeline for results.
     7. **SEVERITY & TYPE:** Explicitly categorize severity and dominant acne type.
-    8. **OBJECTIVE FINDINGS:** Provide 3-5 detailed observations (morphology + location).
+    8. **OBJECTIVE FINDINGS:** Provide 3 brief observations (morphology + location).
     
     Return the response in JSON format with the following structure:
     {
-      "clinicalImpression": "A formal clinical assessment of the skin condition.",
+      "clinicalImpression": "A concise clinical assessment.",
       "severity": "Mild" | "Moderate" | "Severe",
-      "acneType": "Specific acne type (e.g., Papulopustular Acne)",
-      "objectiveFindings": ["Detailed observation 1 (morphology + location)", "Detailed observation 2", "Detailed observation 3"],
-      "treatmentPlan": ["Detailed clinical recommendations (Max 10 steps)."],
+      "acneType": "Specific acne type",
+      "objectiveFindings": ["Brief observation 1", "Brief observation 2", "Brief observation 3"],
+      "treatmentPlan": ["Concise clinical recommendations (Max 5 steps)."],
       "ingredientRationale": [
         {
           "ingredient": "Name of active ingredient",
@@ -383,7 +365,7 @@ export const getSkinCareInsights = async (predictions: RoboflowPrediction[], ima
     const imageBytes = imageBase64.split(",")[1];
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       contents: [
         {
           role: 'user',
