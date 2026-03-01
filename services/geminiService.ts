@@ -29,7 +29,7 @@ export const findNearbyClinics = async (lat: number, lng: number, userApiKey?: s
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: "Find 5 highly-rated dermatology clinics or hospitals nearby that treat acne. Provide their details, including a summary of their reviews or key review snippets if available.",
+      contents: "Find 5 highly-rated skin clinics or hospitals nearby that treat acne. If possible, prioritize clinics with PDS (Philippine Dermatological Society) board-certified dermatologists. Provide their details.",
       config: {
         tools: [{ googleMaps: {} }],
         toolConfig: {
@@ -342,7 +342,7 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
     1. Recommend 3 specific skincare products available in the Philippines.
     2. Provide a strong medical disclaimer.
     3. Ensure recommendations align with your VISUAL assessment.
-    4. TREATMENT PLAN: Create a concise AM/PM routine (Max 5 steps each).
+    4. TREATMENT PLAN: Create a concise AM/PM routine. Each item MUST be a full sentence starting with "AM: ", "PM: ", or "Note: ". Do NOT output single words.
     5. CLINICAL IMPRESSION: 1-2 sentences. State severity explicitly.
     6. **TIMELINE:** Include expected timeline for results.
     7. **SEVERITY & TYPE:** Explicitly categorize severity and dominant acne type.
@@ -354,7 +354,7 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
       "severity": "Mild" | "Moderate" | "Severe",
       "acneType": "Specific acne type",
       "objectiveFindings": ["Brief observation 1", "Brief observation 2", "Brief observation 3"],
-      "treatmentPlan": ["Concise clinical recommendations (Max 5 steps)."],
+      "treatmentPlan": ["AM: Step 1 description.", "PM: Step 1 description.", "Note: Important lifestyle advice."],
       "ingredientRationale": [
         {
           "ingredient": "Name of active ingredient",
@@ -379,7 +379,7 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
     const imageBytes = imageBase64.split(",")[1];
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: [
         {
           role: 'user',
@@ -465,9 +465,18 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
       // Relaxed filtering: allow strings or objects with text properties
       parsedResult.objectiveFindings = parsedResult.objectiveFindings.map((item: any) => {
         if (typeof item === 'string') return item;
-        if (typeof item === 'object' && item !== null) return item.text || item.finding || item.description || JSON.stringify(item);
+        if (typeof item === 'object' && item !== null) {
+            return item.text || item.finding || item.description || null;
+        }
         return null;
-      }).filter((item: any) => typeof item === 'string' && item.trim() !== '') as string[];
+      }).filter((item: any) => {
+          if (typeof item !== 'string') return false;
+          const trimmed = item.trim();
+          if (trimmed === '') return false;
+          // Filter out single-word hallucinations
+          if (trimmed.split(/\s+/).length < 3) return false;
+          return true;
+      }) as string[];
     }
 
     // Fallback for objective findings if empty
@@ -484,9 +493,27 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
     } else {
       parsedResult.treatmentPlan = parsedResult.treatmentPlan.map((item: any) => {
         if (typeof item === 'string') return item;
-        if (typeof item === 'object' && item !== null) return item.step || item.instruction || item.text || JSON.stringify(item);
+        if (typeof item === 'object' && item !== null) {
+            return item.step || item.instruction || item.text || item.description || null;
+        }
         return null;
-      }).filter((item: any) => typeof item === 'string' && item.trim() !== '') as string[];
+      }).filter((item: any) => {
+        if (typeof item !== 'string') return false;
+        const trimmed = item.trim();
+        if (trimmed === '') return false;
+        
+        // Filter out single-word hallucinations like "rationale", "ingredient"
+        const lower = trimmed.toLowerCase();
+        if (lower === 'rationale' || lower === 'ingredient' || lower === 'ingredients' || lower === 'note') return false;
+        
+        // If it's less than 3 words and doesn't start with AM/PM/Note, it's likely a hallucination
+        const wordCount = trimmed.split(/\s+/).length;
+        if (wordCount < 3 && !/^(am|pm|note):/i.test(trimmed)) {
+            return false;
+        }
+        
+        return true;
+      }) as string[];
     }
 
     // Fallback for treatment plan if empty
@@ -506,9 +533,19 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
     } else {
       parsedResult.recommendedIngredients = parsedResult.recommendedIngredients.map((item: any) => {
         if (typeof item === 'string') return item;
-        if (typeof item === 'object' && item !== null) return item.name || item.ingredient || item.text || JSON.stringify(item);
+        if (typeof item === 'object' && item !== null) {
+            return item.name || item.ingredient || item.text || null;
+        }
         return null;
-      }).filter((item: any) => typeof item === 'string' && item.trim() !== '') as string[];
+      }).filter((item: any) => {
+          if (typeof item !== 'string') return false;
+          const trimmed = item.trim();
+          if (trimmed === '') return false;
+          // Reject keys that are obviously JSON keys
+          const lower = trimmed.toLowerCase();
+          if (lower === 'rationale' || lower === 'ingredient' || lower === 'ingredients' || lower === 'note') return false;
+          return true;
+      }) as string[];
     }
 
     if (!Array.isArray(parsedResult.recommendedProducts)) {
@@ -553,15 +590,17 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
     return parsedResult;
   } catch (error: any) {
     console.error("Gemini Error:", error);
+    
+    const errorMessage = error?.message || (typeof error === 'string' ? error : JSON.stringify(error));
 
     // Check for 429 Resource Exhausted Error
-    if (error.status === 429 || (error.message && error.message.includes("429"))) {
+    if (error.status === 429 || errorMessage.includes("429") || errorMessage.includes("quota")) {
       return {
         clinicalImpression: "Service Unavailable",
         severity: "Moderate",
         acneType: "Unknown",
-        objectiveFindings: ["The AI service is currently experiencing high demand."],
-        treatmentPlan: ["Please try again in a few minutes.", "Check your API quota if using a personal key."],
+        objectiveFindings: ["The AI service is currently experiencing high demand or quota limits."],
+        treatmentPlan: ["Please try again in a few minutes.", "Check your Google AI Studio quota."],
         ingredientRationale: [],
         disclaimer: "System Error: Rate Limit Exceeded",
         recommendedIngredients: [],
@@ -573,10 +612,17 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
       clinicalImpression: "Analysis Failed",
       severity: "Moderate",
       acneType: "Unknown",
-      objectiveFindings: ["Could not generate AI insights."],
-      treatmentPlan: ["Please check your API usage limits or configuration."],
+      objectiveFindings: [
+        "Google Gemini API rejected the request.", 
+        `Error Details: ${errorMessage}`
+      ],
+      treatmentPlan: [
+        "1. Verify your API key is copied correctly (no missing characters).",
+        "2. Ensure the Generative Language API is enabled in your Google Cloud Project.",
+        "3. Check your browser's Developer Console (F12) for more details."
+      ],
       ingredientRationale: [],
-      disclaimer: "System Error",
+      disclaimer: "System Error: API Request Failed",
       recommendedIngredients: [],
       recommendedProducts: []
     };

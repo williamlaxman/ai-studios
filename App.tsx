@@ -65,11 +65,104 @@ const Tooltip: React.FC<{ children: React.ReactNode; content: string }> = ({ chi
   );
 };
 
+const MultiSelectWithOther: React.FC<{
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+}> = ({ label, options, value, onChange, placeholder }) => {
+  // Parse the comma-separated string into an array
+  const currentValues = value ? value.split(', ').filter(v => v.trim() !== '') : [];
+  
+  // Separate predefined options from custom "other" values
+  const selectedOptions = currentValues.filter(v => options.includes(v));
+  const otherValues = currentValues.filter(v => !options.includes(v));
+  const otherText = otherValues.join(', ');
+
+  const handleCheckboxChange = (option: string, checked: boolean) => {
+    let newValues = [...selectedOptions];
+    let newOtherText = otherText;
+
+    if (checked) {
+      if (option === 'None') {
+        newValues = ['None'];
+        newOtherText = ''; // Clear other text if None is selected
+      } else {
+        newValues = newValues.filter(v => v !== 'None');
+        newValues.push(option);
+      }
+    } else {
+      newValues = newValues.filter(v => v !== option);
+    }
+    
+    // Recombine with other text
+    const finalString = [...newValues, ...(newOtherText ? [newOtherText] : [])].join(', ');
+    onChange(finalString);
+  };
+
+  const handleOtherChange = (text: string) => {
+    // If typing in "other", remove "None"
+    const newValues = selectedOptions.filter(v => v !== 'None');
+    const finalString = [...newValues, ...(text ? [text] : [])].join(', ');
+    onChange(finalString);
+  };
+
+  return (
+    <div>
+      <label className="block text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">{label}</label>
+      <div className="grid grid-cols-2 gap-2 mb-2">
+        {options.map(option => (
+          <label key={option} className="flex items-center gap-2 cursor-pointer group">
+            <div className="relative flex items-center justify-center w-4 h-4 rounded border border-gray-300 bg-white group-hover:border-[#a53d4c] transition-colors">
+              <input 
+                type="checkbox" 
+                className="absolute opacity-0 w-full h-full cursor-pointer"
+                checked={selectedOptions.includes(option)}
+                onChange={(e) => handleCheckboxChange(option, e.target.checked)}
+              />
+              {selectedOptions.includes(option) && <i className="fa-solid fa-check text-[8px] text-[#a53d4c]"></i>}
+            </div>
+            <span className="text-[10px] md:text-xs text-gray-700">{option}</span>
+          </label>
+        ))}
+      </div>
+      <input 
+        type="text" 
+        value={otherText}
+        onChange={(e) => handleOtherChange(e.target.value)}
+        placeholder={placeholder || "Other (please specify)"}
+        className="w-full p-2 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#a53d4c] outline-none bg-white/50 min-h-[36px]"
+      />
+    </div>
+  );
+};
+
 const PatientHistoryForm: React.FC<{ history: PatientHistory, setHistory: (h: PatientHistory) => void }> = ({ history, setHistory }) => {
+  const treatmentOptions = [
+    "None",
+    "Salicylic Acid",
+    "Benzoyl Peroxide",
+    "Retinoids (Adapalene/Tretinoin)",
+    "Oral Antibiotics",
+    "Isotretinoin (Accutane)",
+    "Birth Control Pills"
+  ];
+
+  const historyOptions = [
+    "None",
+    "Hormonal Imbalance (PCOS)",
+    "Sensitive Skin / Rosacea",
+    "Eczema / Dermatitis",
+    "Allergies to Skincare",
+    "High Stress Levels",
+    "Dietary Triggers (Dairy/Sugar)"
+  ];
+
   return (
     <div className="bg-white/40 poster-card p-4 md:p-6 border border-[#a53d4c]/20 mt-4 md:mt-6">
       <div className="section-label mb-3 md:mb-4 text-[10px] md:text-xs">Patient History</div>
-      <div className="space-y-3 md:space-y-4">
+      <div className="space-y-4 md:space-y-5">
         <div>
           <label htmlFor="skinType" className="block text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Skin Type</label>
           <select 
@@ -86,27 +179,22 @@ const PatientHistoryForm: React.FC<{ history: PatientHistory, setHistory: (h: Pa
             <option value="Normal">Normal</option>
           </select>
         </div>
-        <div>
-          <label htmlFor="previousTreatments" className="block text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Previous Treatments</label>
-          <input 
-            id="previousTreatments"
-            type="text" 
-            value={history.previousTreatments}
-            onChange={(e) => setHistory({...history, previousTreatments: e.target.value})}
-            placeholder="e.g., Benzoyl Peroxide, Salicylic Acid"
-            className="w-full p-2 md:p-3 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#a53d4c] outline-none bg-white/50 min-h-[44px]"
-          />
-        </div>
-        <div>
-          <label htmlFor="medicalHistory" className="block text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Medical/Skin History</label>
-          <textarea 
-            id="medicalHistory"
-            value={history.history}
-            onChange={(e) => setHistory({...history, history: e.target.value})}
-            placeholder="e.g., Hormonal acne, allergies"
-            className="w-full p-2 md:p-3 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#a53d4c] outline-none bg-white/50 h-20 resize-none min-h-[80px]"
-          />
-        </div>
+        
+        <MultiSelectWithOther 
+          label="Previous Treatments"
+          options={treatmentOptions}
+          value={history.previousTreatments}
+          onChange={(val) => setHistory({...history, previousTreatments: val})}
+          placeholder="Other treatments..."
+        />
+
+        <MultiSelectWithOther 
+          label="Medical/Skin History"
+          options={historyOptions}
+          value={history.history}
+          onChange={(val) => setHistory({...history, history: val})}
+          placeholder="Other medical history..."
+        />
       </div>
     </div>
   );
@@ -625,12 +713,16 @@ ${insights.disclaimer}
         };
     }).sort((a, b) => b.confidence - a.confidence);
     
+    // Calculate the overall average confidence of all visible detections
+    const overallAvgConfidence = filteredDetections.length > 0 
+      ? filteredDetections.reduce((acc: any, p: any) => acc + p.confidence, 0) / filteredDetections.length 
+      : 0;
+
     return {
       ...stats,
       totalDetections: filteredDetections.length,
       acneTypesFound: uniqueClasses.size,
-      // We keep the original AI Confidence (from the classifier) unless it's 0, then we average the visible boxes
-      avgConfidence: stats.avgConfidence > 0 ? stats.avgConfidence : (filteredDetections.length > 0 ? filteredDetections.reduce((acc: any, p: any) => acc + p.confidence, 0) / filteredDetections.length : 0),
+      avgConfidence: overallAvgConfidence,
       dynamicPredictions
     };
   }, [result, confidenceThreshold, stats]);

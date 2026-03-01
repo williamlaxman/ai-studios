@@ -94,6 +94,10 @@ const DiagnosisCard: React.FC<DiagnosisCardProps> = ({ severity, acneType, predi
                     </div>
                   </div>
                 ))}
+                <p className="text-[8px] md:text-[9px] text-gray-400 mt-3 italic leading-relaxed">
+                  <i className="fa-solid fa-circle-info mr-1"></i>
+                  If you feel that the diagnosis is wrong or missing other types, try adjusting the <strong>Detection Confidence</strong> slider.
+                </p>
               </div>
             )}
           </div>

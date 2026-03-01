@@ -109,6 +109,12 @@ const ClinicFinder: React.FC<ClinicFinderProps> = ({ autoOpen = false }) => {
 
       {clinics.length > 0 && (
         <div className="space-y-3 mt-4">
+          <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 mb-4">
+            <p className="text-[9px] md:text-[10px] text-blue-800 leading-relaxed">
+              <i className="fa-solid fa-circle-info mr-1 text-blue-600"></i>
+              <strong>Disclaimer:</strong> These clinics are sourced via Google Maps based on your location. Please verify independently if the attending physician is a board-certified member of the <strong>Philippine Dermatological Society (PDS)</strong> for specialized dermatological care.
+            </p>
+          </div>
           {clinics.map((clinic, idx) => (
             <div key={idx} className="bg-white rounded-xl border border-gray-100 hover:border-[#a53d4c]/30 hover:shadow-md transition-all group overflow-hidden">
               <div className="p-3 md:p-4 flex justify-between items-start">
@@ -116,14 +122,16 @@ const ClinicFinder: React.FC<ClinicFinderProps> = ({ autoOpen = false }) => {
                   <h4 className="font-bold text-[#a53d4c] text-sm md:text-base">{clinic.name}</h4>
                   <p className="text-[10px] md:text-xs text-gray-500 mt-1"><i className="fa-solid fa-map-pin mr-1 text-gray-400"></i> {clinic.address}</p>
                   <div className="flex items-center gap-2 mt-2">
-                     <div className="text-[10px] font-bold text-gray-500 flex items-center gap-1">
-                        <i className="fa-solid fa-star text-yellow-400"></i> 
-                        {clinic.rating ? (
+                     {clinic.rating ? (
+                       <div className="text-[10px] font-bold text-gray-500 flex items-center gap-1">
+                          <i className="fa-solid fa-star text-yellow-400"></i> 
                           <span>{clinic.rating.toFixed(1)} {clinic.userRatingCount ? `(${clinic.userRatingCount} reviews)` : ''}</span>
-                        ) : (
-                          <span>Rating not available</span>
-                        )}
-                     </div>
+                       </div>
+                     ) : (
+                       <div className="text-[9px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded flex items-center gap-1 uppercase tracking-wide">
+                          <i className="fa-solid fa-house-medical"></i> Skin Clinic
+                       </div>
+                     )}
                   </div>
                 </div>
                 <a 
@@ -143,7 +151,7 @@ const ClinicFinder: React.FC<ClinicFinderProps> = ({ autoOpen = false }) => {
              <button 
               type="button"
               onClick={handleFindClinics}
-              className="text-[10px] font-bold text-gray-400 uppercase tracking-widest hover:text-[#a53d4c] transition-colors"
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-widest hover:text-[#a53d4c] transition-colors mb-3"
             >
               <i className="fa-solid fa-rotate-right mr-1"></i> Refresh Location
             </button>
