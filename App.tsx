@@ -672,28 +672,19 @@ const App: React.FC = () => {
           }
       }
 
-      // 6. Generate Insights and Bounding Boxes (Now using the ACTUAL detection/classification data)
+      // 6. Generate Insights (Now using the ACTUAL detection/classification data)
       setIsGeneratingInsights(true);
       
       try {
-        // Run Gemini insights and Gemini lesion detection in parallel
-        const [aiInsightsResult, geminiPredictions] = await Promise.allSettled([
-            getSkinCareInsights(
-                initialAnalysis.imageUrl, 
-                filteredPredictions, 
-                geminiKey || undefined, 
-                patientHistory, 
-                classificationLabel
-            ),
-            import('./services/geminiService').then(m => m.detectLesionsWithGemini(
-                initialAnalysis.imageUrl,
-                geminiKey || undefined,
-                classificationLabel
-            ))
-        ]);
-
-        let aiInsights = aiInsightsResult.status === 'fulfilled' ? aiInsightsResult.value : null;
-
+        // Pass FILTERED predictions to Gemini so it doesn't hallucinate based on low-confidence noise
+        let aiInsights = await getSkinCareInsights(
+            initialAnalysis.imageUrl, 
+            filteredPredictions, 
+            geminiKey || undefined, 
+            patientHistory, 
+            classificationLabel
+        );
+        
         if (!aiInsights || aiInsights.clinicalImpression === "Analysis Failed" || aiInsights.clinicalImpression === "System Error") {
            console.log("Gemini Analysis failed, retrying immediately...");
            // Retry once
@@ -704,31 +695,6 @@ const App: React.FC = () => {
             setInsights(aiInsights);
             setRecommendedIngredients(aiInsights.recommendedIngredients);
         }
-
-        // Update predictions with Gemini's bounding boxes if successful
-        if (geminiPredictions.status === 'fulfilled' && geminiPredictions.value.length > 0) {
-            setResult(prev => {
-                if (!prev) return null;
-                return {
-                    ...prev,
-                    predictions: geminiPredictions.value
-                };
-            });
-            
-            // Update stats based on Gemini's predictions
-            const geminiUniqueClasses = new Set(geminiPredictions.value.map((p: any) => p.class));
-            const geminiAvgConfidence = geminiPredictions.value.length > 0 
-                ? geminiPredictions.value.reduce((acc: any, p: any) => acc + p.confidence, 0) / geminiPredictions.value.length 
-                : 0;
-
-            setStats(prev => ({
-                ...prev,
-                totalDetections: geminiPredictions.value.length,
-                acneTypesFound: geminiUniqueClasses.size,
-                avgConfidence: geminiAvgConfidence
-            }));
-        }
-
       } catch (insightErr) {
         console.error("Insight Generation Failed:", insightErr);
         // We don't fail the whole flow, just the insights part
