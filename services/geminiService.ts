@@ -193,7 +193,7 @@ export const detectLesionsWithGemini = async (imageBase64: string, userApiKey?: 
 
   try {
     const result = await ai.models.generateContent({
-      model: "gemini-flash-latest",
+      model: "gemini-3-flash-preview",
       contents: [
         { role: "user", parts: [{ inlineData: { mimeType, data: imageBytes } }, { text: prompt }] }
       ],
@@ -224,7 +224,8 @@ export const detectLesionsWithGemini = async (imageBase64: string, userApiKey?: 
     const responseText = result.text;
     if (!responseText) return [];
     
-    const parsed = JSON.parse(responseText);
+    const cleanText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleanText);
 
     if (!parsed.predictions || !Array.isArray(parsed.predictions)) {
       return [];
@@ -272,6 +273,7 @@ export const detectLesionsWithGemini = async (imageBase64: string, userApiKey?: 
         });
         resolve(predictions);
       };
+      img.onerror = () => resolve([]);
       img.src = imageBase64;
     });
 
@@ -411,7 +413,7 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
     const imageBytes = imageBase64.split(",")[1];
 
     const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3.1-pro-preview',
       contents: [
         {
           role: 'user',
@@ -486,7 +488,8 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
     const text = response.text;
     if (!text) throw new Error("No response from Gemini");
     
-    const parsedResult = JSON.parse(text) as AIInsights;
+    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsedResult = JSON.parse(cleanText) as AIInsights;
 
     // Force classification context if available and valid (ResNet Model Priority)
     if (classificationContext && classificationContext.trim() !== "") {

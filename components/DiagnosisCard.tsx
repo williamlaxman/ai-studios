@@ -91,7 +91,7 @@ const DiagnosisCard: React.FC<DiagnosisCardProps> = ({ severity, acneType, predi
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-2">Detected Conditions</span>
             <div className="text-lg font-bold text-gray-900 leading-tight break-words mb-3 capitalize">
               {predictions && predictions.length > 0 
-                ? predictions.map(p => p.class).join(", ") 
+                ? [...new Set(predictions.map(p => p.class))].join(", ") 
                 : (acneType || "Unspecified Acne")}
             </div>
             

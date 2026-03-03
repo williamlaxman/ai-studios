@@ -27,6 +27,7 @@ export interface RoboflowPrediction {
 export interface AnalysisResult {
   predictions: RoboflowPrediction[];
   imageUrl: string;
+  annotatedImageUrl?: string;
   imageDimensions: { width: number; height: number };
   classificationLabel?: string;
   classificationPredictions?: { class: string; confidence: number }[];
