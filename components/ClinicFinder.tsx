@@ -13,6 +13,7 @@ const ClinicFinder: React.FC<ClinicFinderProps> = ({ autoOpen = false }) => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
   const [sortBy, setSortBy] = useState<'nearest' | 'highest-rated'>('nearest');
+  const [usingFallback, setUsingFallback] = useState(false);
 
   const sortedClinics = React.useMemo(() => {
     let sorted = [...clinics];
@@ -36,48 +37,44 @@ const ClinicFinder: React.FC<ClinicFinderProps> = ({ autoOpen = false }) => {
   const handleFindClinics = React.useCallback(() => {
     setLoading(true);
     setError(null);
+    setUsingFallback(false);
+
+    const fetchClinics = async (lat: number, lng: number, isFallback = false) => {
+      try {
+        const results = await findNearbyClinics(lat, lng);
+        if (results.length === 0) {
+           setError("No clinics found nearby (API Quota or Permission issue).");
+        } else {
+          setClinics(results);
+          if (isFallback) {
+             setUsingFallback(true);
+             setLocation({ lat, lng });
+          }
+        }
+      } catch (err: any) {
+        console.error(err);
+        setError("Unable to fetch clinic data. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
 
     if (!navigator.geolocation) {
-      setError("Geolocation is not supported by your browser.");
-      setLoading(false);
+      // Fallback immediately if geolocation is not supported
+      fetchClinics(14.5547, 121.0244, true); // Makati/Manila
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
-      async (position) => {
+      (position) => {
         const { latitude, longitude } = position.coords;
         setLocation({ lat: latitude, lng: longitude });
-
-        try {
-          // Mock data for now since we don't have a real backend proxy for Google Places API
-          // In a real app, this would call your backend which calls Google Places
-          // For this demo, we'll simulate a delay and return some dummy data or use the service if implemented
-          
-          // Check if findNearbyClinics is actually implemented to hit an API
-          // Based on previous context, it might be using Gemini or a mock.
-          // Let's assume the service function exists and tries to do something.
-          
-          // Actually, let's look at the import: import { findNearbyClinics } from '../services/geminiService';
-          // If that service uses Gemini to find clinics (Grounding), it might work.
-          
-          const results = await findNearbyClinics(latitude, longitude);
-          if (results.length === 0) {
-             // Fallback if API returns nothing (common in demo/sandbox without billing)
-             setError("No clinics found nearby (API Quota or Permission issue).");
-          } else {
-            setClinics(results);
-          }
-        } catch (err: any) {
-          console.error(err);
-          setError("Unable to fetch clinic data. Please try again.");
-        } finally {
-          setLoading(false);
-        }
+        fetchClinics(latitude, longitude);
       },
       (err) => {
-        console.error(err);
-        setError("Unable to retrieve your location. Please enable location services.");
-        setLoading(false);
+        console.error("Geolocation error:", err);
+        // Fallback to Manila on error (denied, timeout, etc.)
+        fetchClinics(14.5547, 121.0244, true);
       }
     );
   }, []);
@@ -129,6 +126,14 @@ const ClinicFinder: React.FC<ClinicFinderProps> = ({ autoOpen = false }) => {
 
       {clinics.length > 0 && (
         <div className="space-y-3 mt-4">
+          {usingFallback && (
+            <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3 mb-3 flex items-start gap-2">
+              <i className="fa-solid fa-triangle-exclamation text-yellow-600 mt-0.5 text-xs"></i>
+              <p className="text-[10px] text-yellow-800 leading-relaxed">
+                <strong>Location Access Unavailable:</strong> Showing top-rated clinics in <strong>Metro Manila</strong> as a default reference.
+              </p>
+            </div>
+          )}
           <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 mb-4">
             <p className="text-[9px] md:text-[10px] text-blue-800 leading-relaxed">
               <i className="fa-solid fa-circle-info mr-1 text-blue-600"></i>

@@ -221,7 +221,7 @@ export const detectLesionsWithGemini = async (imageBase64: string, userApiKey?: 
 
   try {
     const result = await ai.models.generateContent({
-      model: "gemini-flash-latest",
+      model: "gemini-2.5-flash",
       contents: [
         { role: "user", parts: [{ inlineData: { mimeType, data: imageBytes } }, { text: prompt }] }
       ],
@@ -439,7 +439,7 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
     const imageBytes = imageBase64.split(",")[1];
 
     const response = await generateWithRetry(ai.models, {
-      model: 'gemini-flash-latest',
+      model: 'gemini-2.5-flash',
       contents: [
         {
           role: 'user',
