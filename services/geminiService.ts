@@ -1,8 +1,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { RoboflowPrediction, PatientHistory, Clinic } from "../types";
 
-// Default API Key for Gemini - Hardcoded as per request
-export const DEFAULT_GEMINI_KEY = "AIzaSyDomMEIb9obq4ijpeM4D7DbdbMkQWVE8wQ";
+// Default API Key for Gemini - Empty by default to rely on env vars or user input
+export const DEFAULT_GEMINI_KEY = "";
 
 export interface AIInsights {
   clinicalImpression: string;
@@ -193,7 +193,7 @@ export const detectLesionsWithGemini = async (imageBase64: string, userApiKey?: 
 
   try {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-flash-latest",
       contents: [
         { role: "user", parts: [{ inlineData: { mimeType, data: imageBytes } }, { text: prompt }] }
       ],
@@ -224,8 +224,7 @@ export const detectLesionsWithGemini = async (imageBase64: string, userApiKey?: 
     const responseText = result.text;
     if (!responseText) return [];
     
-    const cleanText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(cleanText);
+    const parsed = JSON.parse(responseText);
 
     if (!parsed.predictions || !Array.isArray(parsed.predictions)) {
       return [];
@@ -273,7 +272,6 @@ export const detectLesionsWithGemini = async (imageBase64: string, userApiKey?: 
         });
         resolve(predictions);
       };
-      img.onerror = () => resolve([]);
       img.src = imageBase64;
     });
 
@@ -413,7 +411,7 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
     const imageBytes = imageBase64.split(",")[1];
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
+      model: 'gemini-flash-latest',
       contents: [
         {
           role: 'user',
@@ -488,8 +486,7 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
     const text = response.text;
     if (!text) throw new Error("No response from Gemini");
     
-    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsedResult = JSON.parse(cleanText) as AIInsights;
+    const parsedResult = JSON.parse(text) as AIInsights;
 
     // Force classification context if available and valid (ResNet Model Priority)
     if (classificationContext && classificationContext.trim() !== "") {

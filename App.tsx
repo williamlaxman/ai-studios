@@ -10,7 +10,7 @@ import ClinicFinder from './components/ClinicFinder';
 import AcneClassificationGuide from './components/AcneClassificationGuide';
 import SideNavigation from './components/SideNavigation';
 import { classifyImage, analyzeImage, isDemoMode, DEFAULT_API_KEY, DEFAULT_MODEL_ENDPOINT } from './services/roboflowService';
-import { getSkinCareInsights, AIInsights, DEFAULT_GEMINI_KEY } from './services/geminiService';
+import { getSkinCareInsights, AIInsights } from './services/geminiService';
 
 const Tooltip: React.FC<{ children: React.ReactNode; content: string }> = ({ children, content }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -305,7 +305,7 @@ const App: React.FC = () => {
   // Settings State
   const [roboflowKey, setRoboflowKey] = useState(DEFAULT_API_KEY);
   const [modelId, setModelId] = useState(DEFAULT_MODEL_ENDPOINT);
-  const [geminiKey, setGeminiKey] = useState(DEFAULT_GEMINI_KEY);
+  const [geminiKey, setGeminiKey] = useState("");
   
   // Upload Feedback State
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'success' | 'error'>('idle');
@@ -1405,8 +1405,8 @@ ${insights.disclaimer}
                 </div>
                 <div>
                   <label htmlFor="geminiKey" className="block text-[9px] md:text-[10px] font-black text-[#a53d4c] uppercase tracking-widest mb-2">Gemini API Key</label>
-                  <input id="geminiKey" type="password" value={geminiKey} onChange={(e) => setGeminiKey(e.target.value)} className="w-full px-4 py-3 md:px-6 md:py-4 bg-white border border-[#f3d9b1] rounded-2xl focus:ring-2 focus:ring-[#a53d4c] outline-none text-xs md:text-sm font-bold shadow-inner" placeholder="Gemini API Key" />
-                  <p className="text-[8px] text-gray-400 mt-1 ml-1">Enter your Gemini API Key if you wish to override the default.</p>
+                  <input id="geminiKey" type="password" value={geminiKey} onChange={(e) => setGeminiKey(e.target.value)} className="w-full px-4 py-3 md:px-6 md:py-4 bg-white border border-[#f3d9b1] rounded-2xl focus:ring-2 focus:ring-[#a53d4c] outline-none text-xs md:text-sm font-bold shadow-inner" placeholder="Enter Gemini API Key (Optional)" />
+                  <p className="text-[8px] text-gray-400 mt-1 ml-1">Leave blank to use the system default key, or enter your own if needed.</p>
                 </div>
 
                 <button type="submit" className="w-full py-4 md:py-5 bg-[#a53d4c] text-white font-black uppercase tracking-widest rounded-2xl shadow-xl hover:bg-[#8b2635] transform active:scale-95 transition-all text-xs md:text-sm">
