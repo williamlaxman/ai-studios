@@ -1,12 +1,17 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { RoboflowPrediction, PatientHistory, Clinic } from "../types";
 
+// Default API Key for Gemini - Hardcoded as per request
+export const DEFAULT_GEMINI_KEY = "AIzaSyDomMEIb9obq4ijpeM4D7DbdbMkQWVE8wQ";
+
 export interface AIInsights {
   clinicalImpression: string;
   severity: "Mild" | "Moderate" | "Severe";
   acneType: string;
   objectiveFindings: string[];
   treatmentPlan: string[];
+  dietSuggestion: string[];
+  lifestyleSuggestion: string[];
   ingredientRationale: { ingredient: string; rationale: string }[];
   disclaimer: string;
   recommendedIngredients: string[];
@@ -17,7 +22,8 @@ export const findNearbyClinics = async (lat: number, lng: number, userApiKey?: s
   const apiKey = userApiKey || 
                  import.meta.env.VITE_GEMINI_API_KEY || 
                  process.env.GEMINI_API_KEY || 
-                 process.env.API_KEY;
+                 process.env.API_KEY ||
+                 DEFAULT_GEMINI_KEY;
   
   if (!apiKey) {
     console.error("Missing Gemini API Key for Maps search.");
@@ -136,7 +142,8 @@ export const detectLesionsWithGemini = async (imageBase64: string, userApiKey?: 
   const apiKey = userApiKey || 
                  import.meta.env.VITE_GEMINI_API_KEY || 
                  process.env.GEMINI_API_KEY || 
-                 process.env.API_KEY;
+                 process.env.API_KEY ||
+                 DEFAULT_GEMINI_KEY;
   if (!apiKey) throw new Error("Missing Gemini API Key");
 
   const ai = new GoogleGenAI({ apiKey });
@@ -279,7 +286,8 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
   const apiKey = userApiKey || 
                  import.meta.env.VITE_GEMINI_API_KEY || 
                  process.env.GEMINI_API_KEY || 
-                 process.env.API_KEY;
+                 process.env.API_KEY ||
+                 DEFAULT_GEMINI_KEY;
 
   if (!apiKey) {
     console.error("Missing Gemini API Key.");
@@ -294,6 +302,8 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
         "3. Paste your key from Google AI Studio.",
         "4. REDEPLOY your application."
       ],
+      dietSuggestion: [],
+      lifestyleSuggestion: [],
       ingredientRationale: [],
       disclaimer: "System Error: Missing API Key",
       recommendedIngredients: [],
@@ -316,52 +326,74 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
   if (patientHistory) {
     historyContext = `
     Patient History:
+    - Age Range: ${patientHistory.ageRange || "Not specified"}
     - Skin Type: ${patientHistory.skinType || "Not specified"}
-    - Previous Treatments: ${patientHistory.previousTreatments || "None specified"}
-    - Medical/Skin History: ${patientHistory.history || "None specified"}
+    - Current Condition: ${patientHistory.currentCondition || "Not specified"}
+    - Breakout Frequency: ${patientHistory.breakoutFrequency || "Not specified"}
+    - Currently Using Treatments: ${patientHistory.usingTreatments || "Not specified"}
+    - Current Treatments: ${patientHistory.currentTreatments || "None specified"}
+    - Skincare Preferences: ${patientHistory.skincarePreferences || "None specified"}
     
     Incorporate this patient history into your assessment and recommendations.
     `;
   }
 
     const prompt = `
-    You are an expert dermatologist AI. You are provided with an image of a patient's skin.
-    ${predictions ? `A preliminary object detection model found: ${countStr} (Total: ${predictions.length}).` : ''}
-    ${classificationContext ? `A specialized classification model has diagnosed this as: "${classificationContext}".` : ''}
+    You are an expert dermatologist AI. You are provided with a high-resolution image of a patient's skin.
+    
+    **DIAGNOSTIC CONTEXT (High Priority):**
+    ${classificationContext ? `A specialized ResNet-50 clinical model has classified this condition as: **"${classificationContext}"**.` : 'No specific prior classification.'}
+    ${predictions ? `Preliminary object detection found: ${countStr}. (Note: This may undercount clustered lesions).` : ''}
     ${historyContext}
     
-    **CRITICAL INSTRUCTION:**
-    Visually analyze the image to determine the true severity and type of acne.
-    - **Mild:** Mostly Comedones, or very few scattered inflammatory lesions.
-    - **Moderate:** Distinct presence of multiple inflammatory lesions (Papules/Pustules).
-    - **Severe:** Widespread inflammatory lesions, presence of Nodules/Cysts, or scarring.
-
-    Provide a professional, structured clinical assessment mimicking how a dermatologist would write a patient chart.
+    **CRITICAL INSTRUCTION: SEVERITY ASSESSMENT**
+    You must determine the severity (Mild, Moderate, or Severe) based on **VISUAL EVIDENCE** of inflammation, lesion depth, and density.
     
-    IMPORTANT GUIDELINES: 
-    1. Recommend 3 specific skincare products available in the Philippines.
-    2. Provide a strong medical disclaimer.
-    3. Ensure recommendations align with your VISUAL assessment.
-    4. TREATMENT PLAN: Create a concise AM/PM routine. Each item MUST be a full sentence starting with "AM: ", "PM: ", or "Note: ". Do NOT output single words.
-    5. CLINICAL IMPRESSION: 1-2 sentences. State severity explicitly.
-    6. **TIMELINE:** Include expected timeline for results.
-    7. **SEVERITY & TYPE:** Explicitly categorize severity and dominant acne type.
-    8. **OBJECTIVE FINDINGS:** Provide 3 brief observations (morphology + location).
+    **IGNORE** the object detection counts if they contradict the visual appearance of severe inflammation.
+    
+    **SEVERITY CRITERIA:**
+    - **SEVERE:** 
+        - Any presence of **Cysts** or **Nodules** (deep, large, red lumps).
+        - **High density** of Pustules/Papules (clustering/confluent lesions).
+        - Significant **Erythema** (redness) or inflammation covering a large area.
+        - Visible scarring or sinus tracts.
+        - If the ResNet classification implies severity (e.g., "Cystic", "Nodular", "Conglobata"), bias towards **SEVERE**.
+    - **MODERATE:** 
+        - Multiple Papules/Pustules but distinct (not confluent).
+        - Moderate redness.
+        - No deep cysts/nodules.
+    - **MILD:** 
+        - Mostly Comedones (Blackheads/Whiteheads).
+        - Few scattered inflammatory lesions.
+        - Little to no background redness.
+
+    **TASK:**
+    Provide a professional, structured clinical assessment.
+    
+    1. **CLINICAL IMPRESSION:** Start with a bold statement of the severity and type (e.g., "**Severe Nodulocystic Acne**"). Then, provide a detailed 2-3 sentence explanation of *why* this classification was made, referencing specific visual features like lesion density, depth, and inflammation. Use **bold** text for key terms.
+    2. **OBJECTIVE FINDINGS:** Provide 3-4 highly specific, detailed observations about the lesions' morphology, distribution, and surrounding skin condition.
+    3. **TREATMENT PLAN:** 3-4 actionable steps (AM/PM) based on the patient's history (skin type, age, current treatments, preferences) and acne type.
+    4. **DIET SUGGESTION:** 2-3 specific dietary recommendations to help manage the detected acne type.
+    5. **LIFESTYLE SUGGESTION:** 2-3 specific lifestyle changes (e.g., sleep, stress, hygiene) to support skin health.
+    6. **INGREDIENT RATIONALE:** Recommend 3-4 specific active ingredients tailored to the exact findings and patient preferences, explaining *why* they are chosen. Ensure you consider their current treatments to avoid overlapping strong actives.
+    7. **PRODUCT RECOMMENDATIONS:** Recommend 3 specific, widely available skincare products in the Philippines that contain the recommended ingredients. Ensure a mix of Drug (if severe) and Cosmetic products.
     
     Return the response in JSON format with the following structure:
     {
       "clinicalImpression": "A concise clinical assessment.",
       "severity": "Mild" | "Moderate" | "Severe",
       "acneType": "Specific acne type",
-      "objectiveFindings": ["Brief observation 1", "Brief observation 2", "Brief observation 3"],
-      "treatmentPlan": ["AM: Step 1 description.", "PM: Step 1 description.", "Note: Important lifestyle advice."],
+      "objectiveFindings": ["Detailed observation 1", "Detailed observation 2", "Detailed observation 3"],
+      "treatmentPlan": ["AM: Step 1 description.", "PM: Step 1 description.", "Note: Important advice."],
+      "dietSuggestion": ["Diet tip 1", "Diet tip 2"],
+      "lifestyleSuggestion": ["Lifestyle tip 1", "Lifestyle tip 2"],
       "ingredientRationale": [
         {
           "ingredient": "Name of active ingredient",
-          "rationale": "Specific reason for recommending this."
+          "rationale": "Specific, detailed reason for recommending this based on the objective findings and patient history."
         }
       ],
-      "disclaimer": "Strong medical disclaimer.",
+      "disclaimer": "These are short-term guidance suggestions and are not medical prescriptions. Always perform a patch test before trying new skincare products. If irritation occurs, discontinue use immediately.",
       "recommendedIngredients": ["List of active ingredients"],
       "recommendedProducts": [
         {
@@ -409,6 +441,14 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
               items: { type: Type.STRING }
             },
             treatmentPlan: { 
+              type: Type.ARRAY,
+              items: { type: Type.STRING }
+            },
+            dietSuggestion: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING }
+            },
+            lifestyleSuggestion: {
               type: Type.ARRAY,
               items: { type: Type.STRING }
             },
@@ -528,6 +568,18 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
       ];
     }
 
+    if (!Array.isArray(parsedResult.dietSuggestion)) {
+      parsedResult.dietSuggestion = [];
+    } else {
+      parsedResult.dietSuggestion = parsedResult.dietSuggestion.filter((item: any) => typeof item === 'string' && item.trim() !== '') as string[];
+    }
+
+    if (!Array.isArray(parsedResult.lifestyleSuggestion)) {
+      parsedResult.lifestyleSuggestion = [];
+    } else {
+      parsedResult.lifestyleSuggestion = parsedResult.lifestyleSuggestion.filter((item: any) => typeof item === 'string' && item.trim() !== '') as string[];
+    }
+
     if (!Array.isArray(parsedResult.recommendedIngredients)) {
       parsedResult.recommendedIngredients = [];
     } else {
@@ -601,6 +653,8 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
         acneType: "Unknown",
         objectiveFindings: ["The AI service is currently experiencing high demand or quota limits."],
         treatmentPlan: ["Please try again in a few minutes.", "Check your Google AI Studio quota."],
+        dietSuggestion: [],
+        lifestyleSuggestion: [],
         ingredientRationale: [],
         disclaimer: "System Error: Rate Limit Exceeded",
         recommendedIngredients: [],
@@ -621,6 +675,8 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
         "2. Ensure the Generative Language API is enabled in your Google Cloud Project.",
         "3. Check your browser's Developer Console (F12) for more details."
       ],
+      dietSuggestion: [],
+      lifestyleSuggestion: [],
       ingredientRationale: [],
       disclaimer: "System Error: API Request Failed",
       recommendedIngredients: [],

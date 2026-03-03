@@ -97,23 +97,58 @@ const DiagnosisCard: React.FC<DiagnosisCardProps> = ({ severity, acneType, predi
             
             {predictions && predictions.length > 0 && (
               <div className="space-y-2 mt-4 pt-4 border-t border-gray-100">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Model Confidence</span>
-                {predictions.slice(0, 5).map((pred, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <div className="flex justify-between text-[10px] font-medium text-gray-600 mb-1">
-                        <span>{pred.class}</span>
-                        <span>{(pred.confidence * 100).toFixed(1)}%</span>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Lesion Count Breakdown</span>
+                {(() => {
+                  // Group predictions by class and count them
+                  const counts: Record<string, number> = {};
+                  predictions.forEach(p => {
+                    counts[p.class] = (counts[p.class] || 0) + 1;
+                  });
+                  
+                  return Object.entries(counts).map(([className, count], idx) => (
+                    <div key={idx} className="flex items-center justify-between py-1 border-b border-gray-50 last:border-0">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${
+                          className.toLowerCase().includes('pustule') ? 'bg-red-500' :
+                          className.toLowerCase().includes('papule') ? 'bg-orange-500' :
+                          className.toLowerCase().includes('whitehead') ? 'bg-gray-200 border border-gray-400' :
+                          className.toLowerCase().includes('blackhead') ? 'bg-gray-800' :
+                          'bg-rose-700'
+                        }`}></div>
+                        <span className="text-xs font-medium text-gray-700 capitalize">{className}</span>
                       </div>
-                      <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-[#a53d4c] rounded-full" 
-                          style={{ width: `${pred.confidence * 100}%` }}
-                        ></div>
-                      </div>
+                      <span className="text-xs font-bold text-[#a53d4c] bg-[#a53d4c]/5 px-2 py-0.5 rounded-md">
+                        {count} {count === 1 ? 'spot' : 'spots'}
+                      </span>
                     </div>
-                  </div>
-                ))}
+                  ));
+                })()}
+
+                <div className="mt-4 pt-4 border-t border-gray-50">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Detailed Confidence</span>
+                    {predictions.slice(0, 5).map((pred, idx) => (
+                      <div key={idx} className="flex items-center gap-2 mb-2">
+                        <div className="flex-1">
+                          <div className="flex justify-between text-[10px] font-medium text-gray-600 mb-1">
+                            <span>{pred.class}</span>
+                            <span>{(pred.confidence * 100).toFixed(1)}%</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-[#a53d4c] rounded-full" 
+                              style={{ width: `${pred.confidence * 100}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {predictions.length > 5 && (
+                        <p className="text-[9px] text-gray-400 text-center mt-1">
+                            + {predictions.length - 5} more detected
+                        </p>
+                    )}
+                </div>
+
                 <p className="text-[8px] md:text-[9px] text-gray-400 mt-3 italic leading-relaxed">
                   <i className="fa-solid fa-circle-info mr-1"></i>
                   If you feel that the diagnosis is wrong or missing other types, try adjusting the <strong>Detection Confidence</strong> slider.

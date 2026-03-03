@@ -1,7 +1,11 @@
 export interface PatientHistory {
+  ageRange: string;
   skinType: string;
-  previousTreatments: string;
-  history: string;
+  currentCondition: string;
+  breakoutFrequency: string;
+  usingTreatments: string;
+  currentTreatments: string;
+  skincarePreferences: string;
 }
 
 export interface User {

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import ReactMarkdown from 'react-markdown';
 import TreatmentPlan from './components/TreatmentPlan';
 import { Stats, AnalysisResult, PatientHistory } from './types';
 import StatsCards from './components/StatsCards';
@@ -7,6 +8,7 @@ import AnalyzedImage from './components/AnalyzedImage';
 import FDAResults from './components/FDAResults';
 import ClinicFinder from './components/ClinicFinder';
 import AcneClassificationGuide from './components/AcneClassificationGuide';
+import SideNavigation from './components/SideNavigation';
 import { classifyImage, analyzeImage, isDemoMode, DEFAULT_API_KEY, DEFAULT_MODEL_ENDPOINT } from './services/roboflowService';
 import { getSkinCareInsights, AIInsights } from './services/geminiService';
 
@@ -147,32 +149,60 @@ const MultiSelectWithOther: React.FC<{
 };
 
 const PatientHistoryForm: React.FC<{ history: PatientHistory, setHistory: (h: PatientHistory) => void }> = ({ history, setHistory }) => {
-  const treatmentOptions = [
-    "None",
-    "Salicylic Acid",
-    "Benzoyl Peroxide",
-    "Retinoids (Adapalene/Tretinoin)",
-    "Oral Antibiotics",
-    "Isotretinoin (Accutane)",
-    "Birth Control Pills"
+  const currentConditionOptions = [
+    "Very oily or shiny",
+    "Red or inflamed",
+    "Easily irritated",
+    "Dry or flaky",
+    "Painful or deep pimples",
+    "Mostly small bumps or clogged pores",
+    "Not sure"
   ];
 
-  const historyOptions = [
-    "None",
-    "Hormonal Imbalance (PCOS)",
-    "Sensitive Skin / Rosacea",
-    "Eczema / Dermatitis",
-    "Allergies to Skincare",
-    "High Stress Levels",
-    "Dietary Triggers (Dairy/Sugar)"
+  const currentTreatmentsOptions = [
+    "Salicylic Acid",
+    "Benzoyl Peroxide",
+    "Retinoids",
+    "Antibiotics",
+    "Not sure"
+  ];
+
+  const skincarePreferencesOptions = [
+    "Gentle and low-irritation products",
+    "Fast-acting treatments",
+    "Minimal routine (few products only)",
+    "Natural or plant-based ingredients",
+    "Fragrance-free products",
+    "Dermatologist-recommended ingredients",
+    "Budget-friendly options"
   ];
 
   return (
     <div className="bg-white/40 poster-card p-4 md:p-6 border border-[#a53d4c]/20 mt-4 md:mt-6">
-      <div className="section-label mb-3 md:mb-4 text-[10px] md:text-xs">Patient History</div>
+      <div className="section-label mb-3 md:mb-4 text-[10px] md:text-xs">Patient Information</div>
+      <p className="text-[10px] md:text-xs text-gray-600 mb-4">
+        To improve your skincare ingredient recommendations, please answer the following questions. Your responses are used only for this session and are not stored.
+      </p>
       <div className="space-y-4 md:space-y-5">
         <div>
-          <label htmlFor="skinType" className="block text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Skin Type</label>
+          <label htmlFor="ageRange" className="block text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">What is your age range?</label>
+          <select 
+            id="ageRange"
+            value={history.ageRange} 
+            onChange={(e) => setHistory({...history, ageRange: e.target.value})}
+            className="w-full p-2 md:p-3 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#a53d4c] outline-none bg-white/50 min-h-[44px]"
+          >
+            <option value="">Select Age Range</option>
+            <option value="Below 13">Below 13</option>
+            <option value="13–17">13–17</option>
+            <option value="18–25">18–25</option>
+            <option value="26–35">26–35</option>
+            <option value="36 and above">36 and above</option>
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="skinType" className="block text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">What is your skin type?</label>
           <select 
             id="skinType"
             value={history.skinType} 
@@ -184,24 +214,65 @@ const PatientHistoryForm: React.FC<{ history: PatientHistory, setHistory: (h: Pa
             <option value="Dry">Dry</option>
             <option value="Combination">Combination</option>
             <option value="Sensitive">Sensitive</option>
-            <option value="Normal">Normal</option>
+            <option value="Not sure">Not sure</option>
           </select>
         </div>
-        
-        <MultiSelectWithOther 
-          label="Previous Treatments"
-          options={treatmentOptions}
-          value={history.previousTreatments}
-          onChange={(val) => setHistory({...history, previousTreatments: val})}
-          placeholder="Other treatments..."
-        />
 
         <MultiSelectWithOther 
-          label="Medical/Skin History"
-          options={historyOptions}
-          value={history.history}
-          onChange={(val) => setHistory({...history, history: val})}
-          placeholder="Other medical history..."
+          label="How would you describe your skin right now?"
+          options={currentConditionOptions}
+          value={history.currentCondition}
+          onChange={(val) => setHistory({...history, currentCondition: val})}
+          placeholder="Other condition..."
+        />
+
+        <div>
+          <label htmlFor="breakoutFrequency" className="block text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">How often do you experience breakouts?</label>
+          <select 
+            id="breakoutFrequency"
+            value={history.breakoutFrequency} 
+            onChange={(e) => setHistory({...history, breakoutFrequency: e.target.value})}
+            className="w-full p-2 md:p-3 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#a53d4c] outline-none bg-white/50 min-h-[44px]"
+          >
+            <option value="">Select Frequency</option>
+            <option value="Rarely">Rarely</option>
+            <option value="Occasionally">Occasionally</option>
+            <option value="Frequently">Frequently</option>
+            <option value="Almost always">Almost always</option>
+            <option value="Not sure">Not sure</option>
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="usingTreatments" className="block text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Are you currently using any acne treatment products?</label>
+          <select 
+            id="usingTreatments"
+            value={history.usingTreatments} 
+            onChange={(e) => setHistory({...history, usingTreatments: e.target.value})}
+            className="w-full p-2 md:p-3 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#a53d4c] outline-none bg-white/50 min-h-[44px]"
+          >
+            <option value="">Select Option</option>
+            <option value="Yes">Yes</option>
+            <option value="No">No</option>
+          </select>
+        </div>
+
+        {history.usingTreatments === 'Yes' && (
+          <MultiSelectWithOther 
+            label="If Yes, select what you are using:"
+            options={currentTreatmentsOptions}
+            value={history.currentTreatments}
+            onChange={(val) => setHistory({...history, currentTreatments: val})}
+            placeholder="Other treatments..."
+          />
+        )}
+
+        <MultiSelectWithOther 
+          label="What are your skincare preferences?"
+          options={skincarePreferencesOptions}
+          value={history.skincarePreferences}
+          onChange={(val) => setHistory({...history, skincarePreferences: val})}
+          placeholder="Other preferences..."
         />
       </div>
     </div>
@@ -222,9 +293,13 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'findings' | 'treatment' | 'rationale'>('findings');
   
   const [patientHistory, setPatientHistory] = useState<PatientHistory>({
+    ageRange: '',
     skinType: '',
-    previousTreatments: '',
-    history: ''
+    currentCondition: '',
+    breakoutFrequency: '',
+    usingTreatments: '',
+    currentTreatments: '',
+    skincarePreferences: ''
   });
   
   // Settings State
@@ -597,19 +672,28 @@ const App: React.FC = () => {
           }
       }
 
-      // 6. Generate Insights (Now using the ACTUAL detection/classification data)
+      // 6. Generate Insights and Bounding Boxes (Now using the ACTUAL detection/classification data)
       setIsGeneratingInsights(true);
       
       try {
-        // Pass FILTERED predictions to Gemini so it doesn't hallucinate based on low-confidence noise
-        let aiInsights = await getSkinCareInsights(
-            initialAnalysis.imageUrl, 
-            filteredPredictions, 
-            geminiKey || undefined, 
-            patientHistory, 
-            classificationLabel
-        );
-        
+        // Run Gemini insights and Gemini lesion detection in parallel
+        const [aiInsightsResult, geminiPredictions] = await Promise.allSettled([
+            getSkinCareInsights(
+                initialAnalysis.imageUrl, 
+                filteredPredictions, 
+                geminiKey || undefined, 
+                patientHistory, 
+                classificationLabel
+            ),
+            import('./services/geminiService').then(m => m.detectLesionsWithGemini(
+                initialAnalysis.imageUrl,
+                geminiKey || undefined,
+                classificationLabel
+            ))
+        ]);
+
+        let aiInsights = aiInsightsResult.status === 'fulfilled' ? aiInsightsResult.value : null;
+
         if (!aiInsights || aiInsights.clinicalImpression === "Analysis Failed" || aiInsights.clinicalImpression === "System Error") {
            console.log("Gemini Analysis failed, retrying immediately...");
            // Retry once
@@ -620,6 +704,31 @@ const App: React.FC = () => {
             setInsights(aiInsights);
             setRecommendedIngredients(aiInsights.recommendedIngredients);
         }
+
+        // Update predictions with Gemini's bounding boxes if successful
+        if (geminiPredictions.status === 'fulfilled' && geminiPredictions.value.length > 0) {
+            setResult(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    predictions: geminiPredictions.value
+                };
+            });
+            
+            // Update stats based on Gemini's predictions
+            const geminiUniqueClasses = new Set(geminiPredictions.value.map((p: any) => p.class));
+            const geminiAvgConfidence = geminiPredictions.value.length > 0 
+                ? geminiPredictions.value.reduce((acc: any, p: any) => acc + p.confidence, 0) / geminiPredictions.value.length 
+                : 0;
+
+            setStats(prev => ({
+                ...prev,
+                totalDetections: geminiPredictions.value.length,
+                acneTypesFound: geminiUniqueClasses.size,
+                avgConfidence: geminiAvgConfidence
+            }));
+        }
+
       } catch (insightErr) {
         console.error("Insight Generation Failed:", insightErr);
         // We don't fail the whole flow, just the insights part
@@ -665,9 +774,13 @@ Time: ${new Date().toLocaleTimeString()}
 
 PATIENT HISTORY
 ----------------
+Age Range: ${patientHistory.ageRange}
 Skin Type: ${patientHistory.skinType}
-Previous Treatments: ${patientHistory.previousTreatments}
-Medical History: ${patientHistory.history}
+Current Condition: ${patientHistory.currentCondition}
+Breakout Frequency: ${patientHistory.breakoutFrequency}
+Currently Using Treatments: ${patientHistory.usingTreatments}
+Current Treatments: ${patientHistory.currentTreatments}
+Skincare Preferences: ${patientHistory.skincarePreferences}
 
 ANALYSIS SUMMARY
 ----------------
@@ -690,6 +803,22 @@ TREATMENT PLAN
 --------------
 ${(insights.treatmentPlan || []).map(p => `- ${p}`).join('\n')}
 
+DIET SUGGESTIONS
+----------------
+${(insights.dietSuggestion || []).map(d => `- ${d}`).join('\n')}
+
+LIFESTYLE SUGGESTIONS
+---------------------
+${(insights.lifestyleSuggestion || []).map(l => `- ${l}`).join('\n')}
+
+INGREDIENT RATIONALE
+--------------------
+${(insights.ingredientRationale || []).map(i => `- ${i.ingredient}: ${i.rationale}`).join('\n')}
+
+RECOMMENDED PRODUCTS
+--------------------
+${(insights.recommendedProducts || []).map(p => `- ${p.brand} ${p.name} (${p.type})`).join('\n')}
+
 DISCLAIMER
 ----------
 ${insights.disclaimer}
@@ -707,6 +836,8 @@ ${insights.disclaimer}
   };
 
   const isDemo = isDemoMode();
+
+  const isHistoryComplete = Boolean(patientHistory.ageRange && patientHistory.skinType && patientHistory.breakoutFrequency && patientHistory.usingTreatments);
 
   const displayStats = useMemo(() => {
     if (!result) return { ...stats, dynamicPredictions: [] };
@@ -790,25 +921,41 @@ ${insights.disclaimer}
       </header>
 
       {showShareModal && <ShareModal onClose={() => setShowShareModal(false)} />}
-
-      <main className="max-w-7xl mx-auto px-4 -mt-8 md:-mt-12 relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
+      
+      <main className="max-w-7xl mx-auto px-4 md:pl-4 md:pr-32 lg:pr-40 -mt-8 md:-mt-12 relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
         
         {/* Left column: Background & Diagnostic Input */}
         <div className="lg:col-span-4 space-y-4 md:space-y-6">
           <section className="bg-white/40 poster-card p-4 md:p-6 border border-[#a53d4c]/20">
-            <div className="section-label text-[10px] md:text-xs">Background</div>
+            <div className="section-label text-[10px] md:text-xs">Disclaimer</div>
+            <div className="mt-4 space-y-3 text-[10px] md:text-xs text-gray-700 leading-relaxed">
+              <p>
+                This website is designed for educational and informational purposes only. The acne detection results are generated using Artificial Intelligence and may not be 100% accurate.
+              </p>
+              <p className="font-bold text-[#a53d4c]">
+                Acne Away does not replace professional medical advice, diagnosis, or treatment. If you have severe, painful, or persistent acne, please consult a licensed dermatologist.
+              </p>
+            </div>
+          </section>
+
+          <section className="bg-white/40 poster-card p-4 md:p-6 border border-[#a53d4c]/20">
+            <div className="section-label text-[10px] md:text-xs">How It Works</div>
             <div className="mt-4 space-y-3">
               <div className="flex items-center gap-3 bg-[#fdf2e9] p-3 rounded-2xl border border-orange-100">
-                <i className="fa-solid fa-money-bill-trend-up text-green-600 text-lg md:text-xl"></i>
-                <p className="text-[10px] font-bold text-gray-700 leading-tight">Access to professional skin care remains unequal.</p>
+                <div className="bg-orange-200 text-orange-800 font-bold rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 text-xs">1</div>
+                <p className="text-[10px] font-bold text-gray-700 leading-tight">Provide basic skin details</p>
               </div>
               <div className="flex items-center gap-3 bg-[#fff9db] p-3 rounded-2xl border border-yellow-100">
-                <i className="fa-solid fa-clock-rotate-left text-amber-600 text-lg md:text-xl"></i>
-                <p className="text-[10px] font-bold text-gray-700 leading-tight">Many patients seek treatment only when severe.</p>
+                <div className="bg-yellow-200 text-yellow-800 font-bold rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 text-xs">2</div>
+                <p className="text-[10px] font-bold text-gray-700 leading-tight">Upload a clear photo</p>
               </div>
               <div className="flex items-center gap-3 bg-[#fde2e4] p-3 rounded-2xl border border-red-100">
-                <i className="fa-solid fa-flask-vial text-red-600 text-lg md:text-xl"></i>
-                <p className="text-[10px] font-bold text-gray-700 leading-tight">Improper product use may worsen conditions.</p>
+                <div className="bg-red-200 text-red-800 font-bold rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 text-xs">3</div>
+                <p className="text-[10px] font-bold text-gray-700 leading-tight">AI analyzes and detects acne type</p>
+              </div>
+              <div className="flex items-center gap-3 bg-green-50 p-3 rounded-2xl border border-green-100">
+                <div className="bg-green-200 text-green-800 font-bold rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 text-xs">4</div>
+                <p className="text-[10px] font-bold text-gray-700 leading-tight">Receive results and skincare suggestions</p>
               </div>
             </div>
           </section>
@@ -845,14 +992,14 @@ ${insights.disclaimer}
              </div>
           </div>
 
-          <section className={`bg-white poster-card p-5 md:p-8 shadow-xl border-t-8 border-[#a53d4c] transition-opacity duration-300 ${!patientHistory.skinType ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
+          <section id="section-upload" className={`bg-white poster-card p-5 md:p-8 shadow-xl border-t-8 border-[#a53d4c] transition-opacity duration-300 scroll-mt-24 ${!isHistoryComplete ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
             <div className="text-center mb-4 md:mb-6">
               <i className="fa-solid fa-microscope text-[#a53d4c] text-3xl md:text-4xl mb-2 md:mb-4"></i>
               <h3 className="text-base md:text-lg font-black text-[#a53d4c] uppercase tracking-tighter">Diagnostic Panel</h3>
               <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest">Image Upload Center</p>
-              {!patientHistory.skinType && (
+              {!isHistoryComplete && (
                  <p className="text-[8px] md:text-[9px] text-red-500 font-bold uppercase tracking-widest mt-2 animate-pulse">
-                   <i className="fa-solid fa-circle-exclamation mr-1"></i> Please complete patient history first
+                   <i className="fa-solid fa-circle-exclamation mr-1"></i> Please complete patient information first
                  </p>
               )}
             </div>
@@ -885,17 +1032,19 @@ ${insights.disclaimer}
             {/* Photo Instructions */}
             <div className="mb-6 bg-white/40 border border-[#a53d4c]/20 rounded-2xl p-4 md:p-5 shadow-sm">
               <h4 className="text-[10px] md:text-xs font-black text-[#a53d4c] uppercase tracking-widest mb-3 flex items-center gap-2">
-                <i className="fa-solid fa-camera-retro"></i> Photo Guidelines
+                <i className="fa-solid fa-camera-retro"></i> ResNet-50 Optimized Photo Guidelines
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                 <div className="bg-white/60 rounded-xl p-3 border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
                   <div className="flex items-center gap-2 mb-1.5">
                     <div className="w-5 h-5 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center text-[8px] border border-amber-100">
                       <i className="fa-solid fa-sun"></i>
                     </div>
-                    <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">Lighting</span>
+                    <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">Lighting & Glare</span>
                   </div>
-                  <p className="text-[9px] text-gray-500 leading-relaxed">Face a window for natural, even lighting. Avoid harsh shadows or dark rooms.</p>
+                  <p className="text-[9px] text-gray-500 leading-relaxed">
+                    <strong>Crucial:</strong> Avoid flash and direct sunlight. Specular highlights (shiny white spots) can be mistaken for whiteheads by the model. Use soft, diffused natural light from a window.
+                  </p>
                 </div>
                 
                 <div className="bg-white/60 rounded-xl p-3 border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
@@ -903,19 +1052,35 @@ ${insights.disclaimer}
                     <div className="w-5 h-5 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center text-[8px] border border-rose-100">
                       <i className="fa-solid fa-magnifying-glass-plus"></i>
                     </div>
-                    <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">Focus</span>
+                    <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">Focus & Texture</span>
                   </div>
-                  <p className="text-[9px] text-gray-500 leading-relaxed">Take a close-up of the affected area or your whole face. Take separate photos if needed.</p>
+                  <p className="text-[9px] text-gray-500 leading-relaxed">
+                    The ResNet architecture relies on texture patterns. Ensure the image is sharp. Blur will reduce detection accuracy significantly. Keep the camera parallel to the face.
+                  </p>
                 </div>
 
                 <div className="bg-white/60 rounded-xl p-3 border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
                   <div className="flex items-center gap-2 mb-1.5">
                     <div className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-[8px] border border-emerald-100">
-                      <i className="fa-solid fa-eye"></i>
+                      <i className="fa-solid fa-image"></i>
                     </div>
-                    <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">Clarity</span>
+                    <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">Background & Framing</span>
                   </div>
-                  <p className="text-[9px] text-gray-500 leading-relaxed">Ensure the photo is sharp and in focus. Remove glasses and pull hair back.</p>
+                  <p className="text-[9px] text-gray-500 leading-relaxed">
+                    Fill the frame with the face. Avoid dark or cluttered backgrounds which can affect the model's contrast normalization. Remove glasses and hair from the face.
+                  </p>
+                </div>
+
+                <div className="bg-white/60 rounded-xl p-3 border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-5 h-5 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-[8px] border border-blue-100">
+                      <i className="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">No Filters</span>
+                  </div>
+                  <p className="text-[9px] text-gray-500 leading-relaxed">
+                    Do not use beauty filters or smoothing. The AI needs to see the raw skin texture, including pores and redness, to make an accurate assessment.
+                  </p>
                 </div>
               </div>
             </div>
@@ -925,7 +1090,7 @@ ${insights.disclaimer}
               tabIndex={0}
               aria-label="Upload image for analysis"
               onKeyDown={(e) => {
-                if ((e.key === 'Enter' || e.key === ' ') && uploadStatus !== 'uploading' && patientHistory.skinType) {
+                if ((e.key === 'Enter' || e.key === ' ') && uploadStatus !== 'uploading' && isHistoryComplete) {
                   e.preventDefault();
                   fileInputRef.current?.click();
                 }
@@ -934,9 +1099,9 @@ ${insights.disclaimer}
                 uploadStatus === 'error' ? 'border-red-300 bg-red-50' : 
                 selectedFile ? 'border-[#a53d4c] bg-[#fdf2e9]' : 'border-gray-100 hover:border-[#a53d4c]/30'
               }`}
-              onClick={() => uploadStatus !== 'uploading' && patientHistory.skinType && fileInputRef.current?.click()}
+              onClick={() => uploadStatus !== 'uploading' && isHistoryComplete && fileInputRef.current?.click()}
             >
-              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} disabled={!patientHistory.skinType} aria-hidden="true" tabIndex={-1} />
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} disabled={!isHistoryComplete} aria-hidden="true" tabIndex={-1} />
               
               {uploadStatus === 'uploading' || uploadStatus === 'processing' ? (
                 <div className="flex flex-col items-center justify-center py-4 w-full px-8">
@@ -983,7 +1148,7 @@ ${insights.disclaimer}
             <button
               type="button"
               onClick={handleAnalyze}
-              disabled={!selectedFile || isAnalyzing || uploadStatus === 'uploading' || !patientHistory.skinType}
+              disabled={!selectedFile || isAnalyzing || uploadStatus === 'uploading' || !isHistoryComplete}
               className="w-full mt-6 py-5 bg-[#a53d4c] text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl hover:bg-[#8b2635] disabled:bg-gray-200 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 text-sm relative overflow-hidden"
             >
               {isAnalyzing && (
@@ -995,6 +1160,11 @@ ${insights.disclaimer}
               {isAnalyzing ? 'Processing...' : 'Run Diagnostics'}
             </button>
             {error && <p className="mt-4 text-[10px] text-red-500 font-bold bg-red-50 p-2 rounded-lg text-center">{error}</p>}
+            
+            <div className="mt-4 flex items-center justify-center gap-2 text-[9px] text-gray-500 opacity-70">
+              <i className="fa-solid fa-shield-halved text-[#a53d4c]"></i>
+              <span className="font-medium uppercase tracking-wider">Privacy First: Images are processed in memory and not saved.</span>
+            </div>
           </section>
         </div>
 
@@ -1022,7 +1192,7 @@ ${insights.disclaimer}
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-start">
                   {/* Visual Mapping */}
-                  <div className="md:col-span-7">
+                  <div id="section-analysis" className="md:col-span-7 scroll-mt-24">
                     <AnalyzedImage result={result} confidenceThreshold={confidenceThreshold / 100} />
                   </div>
                   
@@ -1042,7 +1212,7 @@ ${insights.disclaimer}
                             <div className="h-2 bg-gray-200 rounded w-full"></div>
                         </div>
                     ) : null}
-                    <StatsCards stats={displayStats} />
+                    {insights && <StatsCards stats={displayStats} />}
                   </div>
                 </div>
                 
@@ -1053,7 +1223,7 @@ ${insights.disclaimer}
                     <AcneClassificationGuide />
                     
                     {insights ? (
-                      <div className="mt-6 md:mt-8 bg-white/60 p-4 md:p-8 rounded-[2rem] border border-[#a53d4c]/10 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      <div id="section-assessment" className="mt-6 md:mt-8 bg-white/60 p-4 md:p-8 rounded-[2rem] border border-[#a53d4c]/10 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
                         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
                           <div className="flex items-center gap-3 w-full md:w-auto">
                             <div className="bg-[#a53d4c] p-2.5 rounded-xl shrink-0">
@@ -1084,9 +1254,9 @@ ${insights.disclaimer}
                             <h4 className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
                               <i className="fa-solid fa-stethoscope"></i> Clinical Impression
                             </h4>
-                            <p className="text-xs md:text-sm text-gray-700 leading-relaxed font-medium">
-                              {insights.clinicalImpression}
-                            </p>
+                            <div className="text-xs md:text-sm text-gray-700 leading-relaxed font-medium prose prose-sm prose-p:my-1 prose-strong:text-[#a53d4c] prose-strong:font-black">
+                              <ReactMarkdown>{insights.clinicalImpression}</ReactMarkdown>
+                            </div>
                           </div>
 
                           {/* Tabs for Insights */}
@@ -1136,7 +1306,11 @@ ${insights.disclaimer}
 
                               {activeTab === 'treatment' && (
                                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                   <TreatmentPlan plan={insights.treatmentPlan || []} />
+                                   <TreatmentPlan 
+                                     plan={insights.treatmentPlan || []} 
+                                     dietSuggestion={insights.dietSuggestion || []}
+                                     lifestyleSuggestion={insights.lifestyleSuggestion || []}
+                                   />
                                 </div>
                               )}
 
@@ -1195,18 +1369,23 @@ ${insights.disclaimer}
                     ) : null}
 
                     {/* FDA Results */}
-                    {insights && (
-                      <FDAResults 
-                        ingredients={recommendedIngredients} 
-                        products={insights?.recommendedProducts}
-                        onRefresh={handleRefreshInsights}
-                        isRefreshing={isRefreshingInsights}
-                      />
+                    {result && (
+                      <div id="section-products" className="scroll-mt-24">
+                        <FDAResults 
+                          ingredients={recommendedIngredients} 
+                          products={insights?.recommendedProducts}
+                          onRefresh={handleRefreshInsights}
+                          isRefreshing={isRefreshingInsights}
+                          isLoading={!insights}
+                        />
+                      </div>
                     )}
 
                     {/* Clinic Finder */}
-                    {insights && (
-                      <ClinicFinder autoOpen={(insights?.clinicalImpression || '').toLowerCase().includes('severe')} />
+                    {result && (
+                      <div id="section-clinics" className="scroll-mt-24">
+                        <ClinicFinder autoOpen={(insights?.clinicalImpression || '').toLowerCase().includes('severe')} />
+                      </div>
                     )}
                   </>
                 )}
@@ -1234,6 +1413,8 @@ ${insights.disclaimer}
         </div>
 
       </main>
+      
+      <SideNavigation />
 
       {/* Settings Overlay */}
       {showSettings && (
@@ -1257,8 +1438,12 @@ ${insights.disclaimer}
                   <input id="modelId" type="text" value={modelId} onChange={(e) => setModelId(e.target.value)} placeholder="e.g. acne-type/3" className="w-full px-4 py-3 md:px-6 md:py-4 bg-white border border-[#f3d9b1] rounded-2xl focus:ring-2 focus:ring-[#a53d4c] outline-none text-xs md:text-sm font-bold shadow-inner" />
                 </div>
                 <div>
-                  <label htmlFor="geminiKey" className="block text-[9px] md:text-[10px] font-black text-[#a53d4c] uppercase tracking-widest mb-2">Gemini API Key (Optional)</label>
-                  <input id="geminiKey" type="password" value={geminiKey} onChange={(e) => setGeminiKey(e.target.value)} className="w-full px-4 py-3 md:px-6 md:py-4 bg-white border border-[#f3d9b1] rounded-2xl focus:ring-2 focus:ring-[#a53d4c] outline-none text-xs md:text-sm font-bold shadow-inner" placeholder="Gemini API Key" />
+                  <label htmlFor="geminiKey" className="block text-[9px] md:text-[10px] font-black text-[#a53d4c] uppercase tracking-widest mb-2">Gemini API Key</label>
+                  <div className="w-full px-4 py-3 md:px-6 md:py-4 bg-gray-100 border border-gray-200 rounded-2xl text-xs md:text-sm font-bold text-gray-500 flex items-center justify-between">
+                    <span>Pre-configured (System Managed)</span>
+                    <i className="fa-solid fa-lock text-gray-400"></i>
+                  </div>
+                  <p className="text-[8px] text-gray-400 mt-1 ml-1">The system uses a secure, managed key for AI analysis.</p>
                 </div>
 
                 <button type="submit" className="w-full py-4 md:py-5 bg-[#a53d4c] text-white font-black uppercase tracking-widest rounded-2xl shadow-xl hover:bg-[#8b2635] transform active:scale-95 transition-all text-xs md:text-sm">

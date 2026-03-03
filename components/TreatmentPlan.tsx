@@ -2,9 +2,11 @@ import React from 'react';
 
 interface TreatmentPlanProps {
   plan: string[];
+  dietSuggestion?: string[];
+  lifestyleSuggestion?: string[];
 }
 
-const TreatmentPlan: React.FC<TreatmentPlanProps> = ({ plan }) => {
+const TreatmentPlan: React.FC<TreatmentPlanProps> = ({ plan, dietSuggestion = [], lifestyleSuggestion = [] }) => {
   const amRoutine = plan.filter(item => typeof item === 'string' && item.startsWith('AM:'));
   const pmRoutine = plan.filter(item => typeof item === 'string' && item.startsWith('PM:'));
   const otherItems = plan.filter(item => typeof item === 'string' && !item.startsWith('AM:') && !item.startsWith('PM:'));
@@ -70,20 +72,59 @@ const TreatmentPlan: React.FC<TreatmentPlanProps> = ({ plan }) => {
         </div>
       </div>
 
-      {/* Lifestyle & Notes */}
-      {otherItems.length > 0 && (
-        <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
-          <h5 className="text-[10px] md:text-xs font-bold text-gray-600 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <i className="fa-solid fa-notes-medical text-gray-400"></i> Lifestyle & Important Notes
-          </h5>
-          <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {otherItems.map((item, idx) => (
-              <li key={idx} className="text-[10px] md:text-xs text-gray-600 flex items-start gap-2 bg-white p-3 rounded-xl border border-gray-100">
-                <i className="fa-solid fa-info-circle text-blue-400 mt-0.5 text-[10px]"></i>
-                <span>{item.replace(/^(Lifestyle|Note|URGENT):\s*/i, '')}</span>
-              </li>
-            ))}
-          </ul>
+      {/* Diet & Lifestyle */}
+      {(dietSuggestion.length > 0 || lifestyleSuggestion.length > 0 || otherItems.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Diet Suggestions */}
+          {dietSuggestion.length > 0 && (
+            <div className="bg-green-50 rounded-2xl p-4 border border-green-100">
+              <h5 className="text-[10px] md:text-xs font-bold text-green-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <i className="fa-solid fa-apple-whole text-green-500"></i> Diet Suggestions
+              </h5>
+              <ul className="space-y-2">
+                {dietSuggestion.map((item, idx) => (
+                  <li key={idx} className="text-[10px] md:text-xs text-green-800 flex items-start gap-2">
+                    <i className="fa-solid fa-leaf text-green-400 mt-0.5 text-[10px]"></i>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Lifestyle Suggestions */}
+          {lifestyleSuggestion.length > 0 && (
+            <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100">
+              <h5 className="text-[10px] md:text-xs font-bold text-blue-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <i className="fa-solid fa-person-running text-blue-500"></i> Lifestyle Suggestions
+              </h5>
+              <ul className="space-y-2">
+                {lifestyleSuggestion.map((item, idx) => (
+                  <li key={idx} className="text-[10px] md:text-xs text-blue-800 flex items-start gap-2">
+                    <i className="fa-solid fa-spa text-blue-400 mt-0.5 text-[10px]"></i>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          
+          {/* Other Notes */}
+          {otherItems.length > 0 && (
+            <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200 md:col-span-2">
+              <h5 className="text-[10px] md:text-xs font-bold text-gray-600 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <i className="fa-solid fa-notes-medical text-gray-400"></i> Important Notes
+              </h5>
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {otherItems.map((item, idx) => (
+                  <li key={idx} className="text-[10px] md:text-xs text-gray-600 flex items-start gap-2 bg-white p-3 rounded-xl border border-gray-100">
+                    <i className="fa-solid fa-info-circle text-blue-400 mt-0.5 text-[10px]"></i>
+                    <span>{item.replace(/^(Lifestyle|Note|URGENT):\s*/i, '')}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>

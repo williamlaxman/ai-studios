@@ -11,15 +11,32 @@ interface FDAResultsProps {
   products?: RecommendedProduct[];
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  isLoading?: boolean;
 }
 
-const FDAResults: React.FC<FDAResultsProps> = ({ ingredients, products, onRefresh, isRefreshing }) => {
+const FDAResults: React.FC<FDAResultsProps> = ({ ingredients, products, onRefresh, isRefreshing, isLoading }) => {
   const [productSort, setProductSort] = useState<'brand' | 'type' | 'name'>('brand');
   const [productFilter, setProductFilter] = useState<'All' | 'Drug' | 'Cosmetic'>('All');
   const [ingredientSort, setIngredientSort] = useState<'alpha' | 'none'>('none');
 
   const hasIngredients = ingredients && ingredients.length > 0;
   const hasProducts = products && products.length > 0;
+
+  if (isLoading) {
+    return (
+      <div className="mt-6 md:mt-8 bg-white/60 backdrop-blur-sm rounded-3xl p-4 md:p-6 border border-[#a53d4c]/20 shadow-lg text-center animate-pulse">
+        <div className="flex items-center justify-center gap-2 md:gap-3 mb-2">
+          <i className="fa-solid fa-magnifying-glass-location text-[#a53d4c] text-xl md:text-2xl"></i>
+          <h2 className="text-lg md:text-xl font-bold text-[#a53d4c] font-oswald uppercase tracking-wide">
+            FDA Philippines Verification
+          </h2>
+        </div>
+        <p className="text-xs md:text-sm text-gray-500 italic mb-4">
+          Analyzing ingredients and products for verification...
+        </p>
+      </div>
+    );
+  }
 
   const filteredProducts = products ? products.filter(p => {
     if (productFilter === 'All') return true;
