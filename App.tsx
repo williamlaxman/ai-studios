@@ -10,7 +10,7 @@ import ClinicFinder from './components/ClinicFinder';
 import AcneClassificationGuide from './components/AcneClassificationGuide';
 import SideNavigation from './components/SideNavigation';
 import { classifyImage, analyzeImage, isDemoMode, DEFAULT_API_KEY, DEFAULT_MODEL_ENDPOINT } from './services/roboflowService';
-import { getSkinCareInsights, AIInsights } from './services/geminiService';
+import { getSkinCareInsights, AIInsights, detectLesionsWithGemini } from './services/geminiService';
 
 const Tooltip: React.FC<{ children: React.ReactNode; content: string }> = ({ children, content }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -535,8 +535,21 @@ const App: React.FC = () => {
 
       // 2. Parallel Execution: Start Roboflow requests immediately
       const detectionPromise = analyzeImage(imageBase64, 1, { width, height })
-        .catch((err: any) => { 
-            console.warn("Roboflow Detection failed:", err);
+        .catch(async (err: any) => { 
+            console.warn("Roboflow Detection failed, attempting fallback to Gemini:", err);
+            try {
+                // Fallback to Gemini for detection if Roboflow fails (e.g. missing API key)
+                const geminiPredictions = await detectLesionsWithGemini(imageBase64, geminiKey || undefined);
+                if (geminiPredictions && geminiPredictions.length > 0) {
+                    return {
+                        predictions: geminiPredictions,
+                        imageUrl: imageBase64,
+                        imageDimensions: { width, height }
+                    };
+                }
+            } catch (geminiErr) {
+                console.error("Gemini Detection also failed:", geminiErr);
+            }
             return null;
         });
 

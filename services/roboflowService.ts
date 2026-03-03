@@ -4,20 +4,21 @@ import { AnalysisResult } from '../types';
  * Default credentials for the Acne Away dataset.
  */
 // Re-exporting for clarity
-export const DEFAULT_API_KEY = "gK3NBQZ6R9ZXHWtLrKOe"; 
-export const DEFAULT_MODEL_ENDPOINT = "acne-away-v1/2";
+export const DEFAULT_API_KEY = import.meta.env.VITE_ROBOFLOW_API_KEY || ""; 
+export const DEFAULT_MODEL_ENDPOINT = import.meta.env.VITE_ROBOFLOW_MODEL_ENDPOINT || "acne-away-v1/2";
 
 export const getCredentials = () => {
-  // Prioritize environment variables, then local storage (though user requested removal), then defaults
-  // Since user asked to remove local storage for history/reviews, we'll keep it for settings for now 
-  // or just rely on defaults if they didn't ask to remove settings persistence specifically.
-  // However, based on previous instruction to remove local storage, we should probably default to constants
-  // if we want to be strict, but usually API keys are kept in env or settings.
-  // Let's stick to the pattern but update the defaults.
+  // Prioritize environment variables
+  const apiKey = import.meta.env.VITE_ROBOFLOW_API_KEY || DEFAULT_API_KEY;
+  const modelEndpoint = import.meta.env.VITE_ROBOFLOW_MODEL_ENDPOINT || DEFAULT_MODEL_ENDPOINT;
   
+  if (!apiKey) {
+    console.warn("Roboflow API Key is missing. Please set VITE_ROBOFLOW_API_KEY in your environment variables.");
+  }
+
   return {
-    apiKey: DEFAULT_API_KEY,
-    modelEndpoint: DEFAULT_MODEL_ENDPOINT
+    apiKey,
+    modelEndpoint
   };
 };
 

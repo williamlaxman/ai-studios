@@ -4,6 +4,34 @@ import { RoboflowPrediction, PatientHistory, Clinic } from "../types";
 // Default API Key for Gemini - Empty by default to rely on env vars or user input
 export const DEFAULT_GEMINI_KEY = "";
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const generateWithRetry = async (model: any, params: any, maxRetries = 3) => {
+  let lastError;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await model.generateContent(params);
+    } catch (error: any) {
+      lastError = error;
+      const errorMessage = error.message || '';
+      const isRetryable = error.status === 503 || 
+                          error.status === 429 || 
+                          errorMessage.includes('503') || 
+                          errorMessage.includes('overloaded') || 
+                          errorMessage.includes('quota');
+      
+      if (isRetryable && i < maxRetries - 1) {
+        const waitTime = 1000 * Math.pow(2, i); // Exponential backoff: 1s, 2s, 4s
+        console.warn(`Gemini API attempt ${i + 1} failed. Retrying in ${waitTime}ms...`);
+        await delay(waitTime);
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError;
+};
+
 export interface AIInsights {
   clinicalImpression: string;
   severity: "Mild" | "Moderate" | "Severe";
@@ -410,7 +438,7 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
     const mimeType = imageBase64.split(";")[0].split(":")[1] || "image/jpeg";
     const imageBytes = imageBase64.split(",")[1];
 
-    const response = await ai.models.generateContent({
+    const response = await generateWithRetry(ai.models, {
       model: 'gemini-flash-latest',
       contents: [
         {
@@ -657,6 +685,23 @@ export const getSkinCareInsights = async (imageBase64: string, predictions?: Rob
         lifestyleSuggestion: [],
         ingredientRationale: [],
         disclaimer: "System Error: Rate Limit Exceeded",
+        recommendedIngredients: [],
+        recommendedProducts: []
+      };
+    }
+
+    // Check for 503 Service Unavailable
+    if (error.status === 503 || errorMessage.includes("503") || errorMessage.includes("overloaded")) {
+      return {
+        clinicalImpression: "Server Busy",
+        severity: "Moderate",
+        acneType: "Unknown",
+        objectiveFindings: ["The AI service is currently experiencing high traffic."],
+        treatmentPlan: ["Please try again in a moment.", "The server is temporarily overloaded."],
+        dietSuggestion: [],
+        lifestyleSuggestion: [],
+        ingredientRationale: [],
+        disclaimer: "System Error: Server Busy",
         recommendedIngredients: [],
         recommendedProducts: []
       };

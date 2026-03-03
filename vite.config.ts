@@ -14,7 +14,9 @@ export default defineConfig(({ mode }) => {
       // if loadEnv doesn't pick it up from a .env file
       'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || process.env.GEMINI_API_KEY),
-      'process.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)
+      'process.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
+      'process.env.VITE_ROBOFLOW_API_KEY': JSON.stringify(env.VITE_ROBOFLOW_API_KEY || process.env.VITE_ROBOFLOW_API_KEY),
+      'process.env.VITE_ROBOFLOW_MODEL_ENDPOINT': JSON.stringify(env.VITE_ROBOFLOW_MODEL_ENDPOINT || process.env.VITE_ROBOFLOW_MODEL_ENDPOINT)
     }
   }
 })
