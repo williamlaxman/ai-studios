@@ -535,13 +535,13 @@ const App: React.FC = () => {
 
       // 2. Parallel Execution: Start Roboflow requests immediately
       const detectionPromise = analyzeImage(imageBase64, 1, { width, height })
-        .catch(err => { 
+        .catch((err: any) => { 
             console.warn("Roboflow Detection failed:", err);
             return null;
         });
 
       const classificationPromise = classifyImage(imageBase64)
-        .catch(err => {
+        .catch((err: any) => {
             console.warn("Roboflow Classification failed:", err);
             return null;
         });
